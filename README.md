@@ -1,0 +1,105 @@
+# Pomme TUI
+
+**Apple Music. Straight from your terminal.**
+
+A Windows terminal player with native audio playback, search, a queue, synced lyrics, artwork, themes, and visualizers. An active Apple Music subscription is required. Pomme is an unofficial community project, independent of Apple.
+
+## Install and play
+
+1. Download and extract the Windows x64 release ZIP from this repository's Releases page. For a local build, find it under `dist/`.
+2. Double-click **Start Pomme.cmd**. On first launch, complete Apple Music sign-in in the temporary window.
+3. Press **/**, enter a song or artist, press **Enter** to search, then **Enter** to play.
+
+Requirements: Windows 10/11 x64, internet access, an Apple Music subscription, Google Chrome with its installed x64 Widevine module, Microsoft Visual C++ x64 Runtime, and WebView2 Evergreen Runtime for sign-in. Chrome does not run during playback. Widevine is loaded from your existing Chrome installation; Pomme does not include or download a CDM.
+
+If setup fails, run `pomme.cmd doctor` from the extracted folder. Install missing dependencies from their official sources: [Chrome](https://www.google.com/chrome/), [Microsoft Visual C++ x64 Runtime](https://aka.ms/vc14/vc_redist.x64.exe), [WebView2](https://developer.microsoft.com/microsoft-edge/webview2/).
+
+### Use the `pomme` command anywhere
+
+From PowerShell in the extracted Windows release folder:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Install.ps1 -AddToPath
+```
+
+This installs for your Windows user without administrator access. Open a **new terminal**, then:
+
+```powershell
+pomme
+pomme doctor
+pomme login
+pomme version
+pomme help
+```
+
+The ZIP also works without installation. The installer verifies executable checksums before copying. To update, quit Pomme and run the new release's installer; your AppData profile is retained. Builds are unsigned; distribution signing has not been set up. Download only from the project owner's trusted release page.
+
+## Audio and Wave Link
+
+Pomme follows Windows' default output and recovers playback when it changes. To use an Elgato Wave Link channel instead:
+
+```powershell
+pomme -Output "Spotify"
+```
+
+Use the name of your actual Windows audio endpoint. Matching is case-insensitive; an exact match is preferred, then a name containing the text. With an explicit device, change your monitor destination inside Wave Link. To return to following Windows:
+
+```powershell
+pomme -DefaultOutput
+```
+
+For a persistent preference, set the user environment variable `POMME_OUTPUT` to the endpoint name. Remove it to restore the default. Do not set an output if you do not have that device.
+
+## Controls
+
+| Key | Action |
+| --- | --- |
+| Space | Play/pause |
+| n / p | Next / previous |
+| / | Search |
+| Tab | Move focus or search category |
+| Enter | Play selected result or queue entry |
+| a / A in search | Append / play next |
+| Left / right in player | Seek five seconds |
+| Up / down in player | Volume |
+| s / r | Shuffle / cycle repeat |
+| v / t | Visualizer / theme |
+| a outside search | Account; Enter in account signs out |
+| R | Recover the audio engine |
+| ? | Full keyboard help |
+| q / Ctrl+C | Quit |
+
+Lyrics use LRCLIB and can be missing or inaccurate. Missing lyrics/artwork do not prevent playback. Optional Last.fm support is inherited from the frontend and is off unless configured. Run `pomme lastfm-auth` to configure its authentication in the Pomme profile.
+
+## Your data
+
+Pomme stores its settings and native session under `%LOCALAPPDATA%\PommeTUI`, outside the program folder. Signing out clears Pomme's Apple Music session without clearing another Sonora application's session. Credentials are sensitive local files protected by your Windows user-folder permissions; they are not encrypted by Pomme. Do not upload this directory, session files, or login logs to GitHub.
+
+Advanced environment variables:
+
+- `POMME_DATA_DIR`: separate absolute profile directory, useful for testing.
+- `SONORA_WIDEVINE_CDM`: path to an existing installed x64 `widevinecdm.dll`.
+- `POMME_OUTPUT`: preferred output endpoint; `-Output` overrides it.
+- `GOMEMLIMIT`: Go runtime soft memory limit; defaults to `64MiB`.
+
+To uninstall, remove the program directory and its entry from your user PATH. To erase the session as well, sign out first or separately remove the PommeTUI user-data folder. The program does not erase user data when its files are removed.
+
+## Scope and limitations
+
+This is an early **0.1.0 Windows release**, tested on a development Windows PC. A clean Windows VM and GitHub-hosted CI have not yet been exercised. Search returns at most 50 items per category; the initial library view is capped at 100 albums, 100 playlists, and ten recent entries; queues are capped at 1,000 catalog songs. Locally uploaded songs without catalog encodes, offline downloads, lossless, and seamless gapless playback are not supported.
+
+Native playback still uses a separate Widevine helper. A prior full-interface snapshot measured roughly 236 MiB combined working set; this is a snapshot, not a memory guarantee. The Go soft limit does not cap total app memory. Subscription/authentication and Apple's service behavior may affect availability.
+
+## Build from source
+
+Install Go 1.26, Rust 1.98.1, and Visual Studio 2022 Build Tools with Desktop development with C++ and a Windows SDK. Keep the source directory path free of spaces (for example `C:\src\pomme-tui`); the native compiler dependency uses whitespace-delimited build flags. The installed app itself supports paths with spaces. In a **Developer PowerShell** with `go` and `cargo` on PATH:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\Build.ps1
+```
+
+The build runs Go tests/vet, Rust library tests, and launcher checks, uses the locked dependencies, and creates `dist/pomme-tui-0.1.0-windows-x64.zip`. Do not commit `dist/`, `target/`, credentials, or local profiles. See [CONTRIBUTING.md](CONTRIBUTING.md) and [RELEASE-CHECKLIST.md](RELEASE-CHECKLIST.md).
+
+## Credits and licenses
+
+The interface is a modified [applemusic-tui](https://github.com/k1y0miiii/applemusic-tui) (amtui), MIT licensed. The native playback uses modified [Sonora](https://github.com/sonorahq/sonora), GPL-3.0-or-later. The backend and combined distribution use GPL-3.0-or-later; the frontend retains its MIT license. See [NOTICE.md](NOTICE.md), [LICENSE](LICENSE), and [THIRD-PARTY.md](THIRD-PARTY.md). Release binaries must be accompanied by their matching source archive. Widevine is not redistributed.

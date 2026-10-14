@@ -1,0 +1,34 @@
+[package]
+name = "apple-native-engine"
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-or-later"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = "debuginfo"
+
+[features]
+backend = ["dep:music", "dep:widevine", "dep:webview", "dep:windows", "dep:tokio"]
+
+[dev-dependencies]
+async-trait = "0.1"
+
+[[bin]]
+name = "apple-native-engine"
+path = "src/main.rs"
+required-features = ["backend"]
+
+[dependencies]
+anyhow = "1.0"
+serde = { version = "1.0", features = ["derive", "rc"] }
+serde_json = { version = "1.0", features = ["raw_value"] }
+fastrand = "2.5"
+music = { path = "../sonora/crates/music", default-features = false, features = ["widevine", "bundled-sqlite"], optional = true }
+widevine = { path = "../sonora/crates/widevine", features = ["cdm"], optional = true }
+webview = { path = "../sonora/crates/webview", optional = true }
+tokio = { version = "1.53", features = ["rt-multi-thread", "macros", "sync", "time", "io-util", "io-std", "signal"], optional = true }
+windows = { version = "0.62", features = ["Win32_System_Com", "Win32_UI_WindowsAndMessaging"], optional = true }
+[patch.crates-io]
+rodio = { git = "https://github.com/RustAudio/rodio", rev = "4aa22e85e5ad5565c45dfdda95051158eb6b56c3" }

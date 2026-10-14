@@ -1,0 +1,26 @@
+name: Windows build
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: frontend/go.mod
+          cache-dependency-path: frontend/go.sum
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.98.1
+      - name: Test and build
+        shell: powershell
+        run: ./scripts/Build.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pomme-tui-windows-x64
+          path: dist/*.zip

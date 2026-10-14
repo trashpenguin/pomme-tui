@@ -1,0 +1,15 @@
+dist/
+target/
+*.exe
+*.dll
+*.zip
+settings/
+cache/
+credentials.json
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.log
+.DS_Store
