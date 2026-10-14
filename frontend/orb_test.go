@@ -207,8 +207,8 @@ func TestVizModesCycleThroughEveryShape(t *testing.T) {
 		}
 		seen[name] = true
 	}
-	if len(seen) != 3 {
-		t.Fatalf("got %d modes, want bars, torus and sphere", len(seen))
+	if len(seen) != 6 {
+		t.Fatalf("got %d modes, want six distinct visualizers", len(seen))
 	}
 }
 

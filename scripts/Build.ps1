@@ -31,13 +31,14 @@ finally {
     $env:AWS_LC_SYS_CFLAGS = $savedNativeFlags
 }
 Invoke-Checked -Tool go -Arguments @('-C',(Join-Path $root 'frontend'),'build','-trimpath','-ldflags',"-s -w -X main.version=$Version",'-o',(Join-Path $release 'pomme-ui.exe'),'.')
+Invoke-Checked -Tool go -Arguments @('-C',(Join-Path $root 'frontend'),'build','-trimpath','-ldflags','-s -w','-o',(Join-Path $release 'Pomme.exe'),'./cmd/pomme')
 Copy-Item -LiteralPath (Join-Path $root 'target\release\apple-native-engine.exe') -Destination $release
 & (Join-Path $PSScriptRoot 'Remove-NativeSourcePaths.ps1') -Path (Join-Path $release 'apple-native-engine.exe')
 foreach ($name in @('pomme.cmd','Run-Pomme.ps1','Pomme.Helpers.ps1','Start Pomme.cmd','Sign In.cmd','Install.ps1')) { Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination $release }
 foreach ($name in @('README.md','LICENSE','NOTICE.md','THIRD-PARTY.md')) { Copy-Item -LiteralPath (Join-Path $root $name) -Destination $release }
 Copy-Item -LiteralPath (Join-Path $root 'frontend\LICENSE') -Destination (Join-Path $release 'LICENSE-AMTUI.txt')
 Copy-Item -LiteralPath (Join-Path $root 'licenses') -Destination $release -Recurse
-$sums = foreach ($name in @('pomme-ui.exe','apple-native-engine.exe')) { '{0}  {1}' -f (Get-PommeSha256 -Path (Join-Path $release $name)), $name }
+$sums = foreach ($name in @('pomme-ui.exe','apple-native-engine.exe','Pomme.exe')) { '{0}  {1}' -f (Get-PommeSha256 -Path (Join-Path $release $name)), $name }
 $sums | Set-Content -LiteralPath (Join-Path $release 'SHA256SUMS.txt') -Encoding ascii
 & (Join-Path $PSScriptRoot 'Test-Release.ps1') -ReleasePath $release
 Compress-Archive -LiteralPath $release -DestinationPath (Join-Path $dist "pomme-tui-$Version-windows-x64.zip")

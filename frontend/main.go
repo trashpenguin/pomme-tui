@@ -7,6 +7,8 @@ import (
 	"log"
 	"math"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
@@ -150,6 +152,7 @@ type model struct {
 	vizLive     bool
 	vizSource   string
 	vizTerminal bool
+	vizHistory  [48][32]float64
 	vizBands    [32]float64 // smoothed, 0..1
 	vizTargets  [32]float64
 	vizPeaks    [32]float64 // peak-hold markers, decay slowly
@@ -497,6 +500,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else {
 			m.vizBands = [32]float64{}
 		}
+		copy(m.vizHistory[1:], m.vizHistory[:47])
+		m.vizHistory[0] = m.vizBands
 		decayPeaks(&m.vizPeaks, m.vizBands)
 		m.orbKickBase, m.orbKick = bassKick(m.orbKickBase, m.orbKick, bassLevel(m.vizBands))
 		m.orbSpin, m.orbWobble = orbAdvance(m.orbSpin, m.orbWobble, m.orbKick)
@@ -1184,6 +1189,8 @@ func simulatedBands(t float64, playing bool) [32]float64 {
 
 func (m model) vizPanel(w, h int) string {
 	switch m.vizMode {
+	case vizWave, vizMirror, vizWaterfall:
+		return spectrumPanel(w, h-1, m.vizMode, m.vizBands, m.vizHistory)
 	case vizTorus:
 		return orbPanel(w, h-1, m.orbSpin, m.orbWobble, m.vizBands)
 	case vizSphere:
@@ -1366,9 +1373,9 @@ func (m model) queueTitle() string {
 }
 
 func (m model) transportPanel(w int) string {
-	icon := "⏸"
+	icon := "="
 	if !m.st.Playing {
-		icon = "▶"
+		icon = ">"
 	}
 	dim := lipgloss.NewStyle().Foreground(fgDim)
 	faint := lipgloss.NewStyle().Foreground(fgFaint)
@@ -1436,9 +1443,11 @@ func (m model) transportPanel(w int) string {
 // the rest as a flat rule. Falls back to a plain filled bar when the waveform
 // is disabled in the config.
 func (m model) progressBar(barW, filled int) string {
+	barW = max(0, barW)
+	filled = max(0, min(filled, barW))
 	rest := lipgloss.NewStyle().Foreground(borderDim).
 		Render(strings.Repeat("─", max(0, barW-filled)))
-	if !configBool(m.cfg, "visualizer.wave", true) {
+	if !configBool(m.cfg, "visualizer.wave", false) {
 		return lipgloss.NewStyle().Foreground(pulse(accentHi, m.pulseAmount())).
 			Render(strings.Repeat("━", filled)) + rest
 	}
@@ -1520,6 +1529,23 @@ func main() {
 			return
 		case "lastfm-auth":
 			os.Exit(runLastfmAuth())
+		}
+	}
+
+	// Direct launches must run the same dependency setup as Pomme.exe.
+	if runtime.GOOS == "windows" && os.Getenv("AMTUI_NATIVE_BACKEND") == "" {
+		executable, err := os.Executable()
+		if err != nil {
+			log.Fatal(err)
+		}
+		script := filepath.Join(filepath.Dir(executable), "Run-Pomme.ps1")
+		if _, err := os.Stat(script); err == nil {
+			command := exec.Command("powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script)
+			command.Stdin, command.Stdout, command.Stderr = os.Stdin, os.Stdout, os.Stderr
+			if err := command.Run(); err != nil {
+				log.Fatal(err)
+			}
+			return
 		}
 	}
 	connections := newConnectionLifecycle()

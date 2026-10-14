@@ -7,7 +7,7 @@ A Windows terminal player with native audio playback, search, a queue, synced ly
 ## Install and play
 
 1. Download and extract the Windows x64 release ZIP from this repository's Releases page. For a local build, find it under `dist/`.
-2. Double-click **Start Pomme.cmd**. On first launch, complete Apple Music sign-in in the temporary window.
+2. Double-click **Pomme.exe** (or **Start Pomme.cmd**). On first launch, complete Apple Music sign-in in the temporary window.
 3. Press **/**, enter a song or artist, press **Enter** to search, then **Enter** to play.
 
 Requirements: Windows 10/11 x64, internet access, an Apple Music subscription, Google Chrome with its installed x64 Widevine module, Microsoft Visual C++ x64 Runtime, and WebView2 Evergreen Runtime for sign-in. Chrome does not run during playback. Widevine is loaded from your existing Chrome installation; Pomme does not include or download a CDM.
@@ -103,3 +103,11 @@ The build runs Go tests/vet, Rust library tests, and launcher checks, uses the l
 ## Credits and licenses
 
 The interface is a modified [applemusic-tui](https://github.com/k1y0miiii/applemusic-tui) (amtui), MIT licensed. The native playback uses modified [Sonora](https://github.com/sonorahq/sonora), GPL-3.0-or-later. The backend and combined distribution use GPL-3.0-or-later; the frontend retains its MIT license. See [NOTICE.md](NOTICE.md), [LICENSE](LICENSE), and [THIRD-PARTY.md](THIRD-PARTY.md). Release binaries must be accompanied by their matching source archive. Widevine is not redistributed.
+
+## Changes in 0.1.2
+
+- Steady progress bar by default, clamped progress values, and plain-text playback symbols for predictable terminal spacing.
+- Six visualizers: bars, torus, sphere, wave, mirror, and waterfall. Press `v` to cycle.
+- `Pomme.exe` launcher; opening `pomme-ui.exe` directly also runs dependency setup when needed.
+
+Local UI tests, package checks, direct-launch setup, and authenticated backend catalog checks passed. Clean-machine playback remains unverified; this is an unsigned prerelease.
