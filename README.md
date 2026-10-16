@@ -120,6 +120,19 @@ Local UI tests, package checks, direct-launch setup, and authenticated backend c
 - **Library:** press `L`, then `Ctrl+L` to cycle songs, albums, playlists, artists and favorites. `PgUp`/`PgDn` fetch 50-item pages. Select an artist to browse their tracks and albums. Apple library permissions and availability still apply.
 - **Queue:** `Delete` removes the selected track, `Ctrl+Up/Down` moves it, and `Ctrl+Delete` clears the queue. Press `S` twice within five seconds to save a dated playlist to Apple Music. A failed or interrupted save may leave a partial playlist; check your library before retrying.
 - **Media keys:** Uses Windows System Media Transport Controls for play/pause, next and previous while Pomme is in the background, with current track metadata. Windows selects the active media session; start playback in Pomme before testing keyboard controls.
+- **Optional global shortcuts:** Disabled by default. After the player starts, edit `%LOCALAPPDATA%\PommeTUI\settings\hotkeys.json` (or `settings\hotkeys.json` under your custom `POMME_DATA_DIR`) and restart Pomme. Set `enabled` to `true` to enable the combinations below, or `false` to release them on the next restart. While disabled, Pomme registers no global keyboard combinations.
+
+```json
+{
+  "enabled": false,
+  "play_pause": "Ctrl+Alt+Space",
+  "next": "Ctrl+Alt+Right",
+  "previous": "Ctrl+Alt+Left"
+}
+```
+
+Customize combinations with Ctrl, Alt, and Shift plus a letter, digit, F1–F24, Space, Left, Right, Up, or Down. Include Ctrl or Alt. Each combination must be different. Enabled shortcuts apply while another app or game is focused and may consume that combination; leave them disabled or choose combinations your games do not use. If registration fails, all Pomme global shortcuts are released and the player shows a notice. Hardware media-button support remains separate.
+
 - **Mini player:** `m` toggles the compact view; it also fits smaller terminals.
 - **Sleep timer:** `T` cycles off / 15 / 30 / 60 / 90 minutes. Expiry pauses playback; timers are not restored after exit.
 - **Search history:** `Ctrl+P` and `Ctrl+N` recall up to 30 searches in the search overlay. History stays in your local settings folder.

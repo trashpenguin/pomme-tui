@@ -558,12 +558,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// A machine with no session bus — a TTY, a container, macOS — simply
 		// has no MPRIS, which is not an error worth showing. MPRIS is re-published
 		// after a reconnect because its controls hold the old engine.
-		if srv, err := mpris.Publish(mprisControls{eng: m.eng, quit: m.mprisQuit}); err == nil {
+		if srv, err := mpris.Publish(mprisControls{eng: m.eng, quit: m.mprisQuit}); err == nil && srv != nil {
 			m.mpris = srv
 			if !m.mprisListening {
 				m.mprisListening = true
 				cmds = append(cmds, listenMPRISQuit(m.mprisQuit))
 			}
+		} else if err != nil && runtime.GOOS == "windows" {
+			m.note, m.noteAt = "Global shortcuts disabled: "+err.Error(), m.t
 		}
 		return m, tea.Batch(cmds...)
 	case mprisQuitMsg:

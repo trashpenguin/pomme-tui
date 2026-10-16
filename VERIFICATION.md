@@ -2,6 +2,8 @@
 
 Checked on 16 October 2026 on Windows. The public release remains 0.1.2 while this candidate is being verified.
 
+The 0.2.0-rc.3 package adds opt-in configurable global shortcuts, disabled by default. All frontend tests and vet passed. Windows shortcut tests passed ten repetitions covering disabled defaults, input validation, action dispatch, conflicting registrations, and release on shutdown. The package reuses the unchanged rc.2 native engine and launcher; release installation, privacy, corruption, and fresh-profile checks passed locally under Windows PowerShell 5.1. No physical keyboard/game compatibility test has been performed. Hosted run 38887814312 still fails fresh-profile hello with an invalid JSON request; that CI issue remains unresolved.
+
 - Frontend tests and Go vet passed, including search history, mini-player layout, sleep-timer expiry, and paginated help.
 - Rust library tests passed (12), and all six controller tests passed. Controller checks cover paused session restoration, queue reorder/remove/clear, and existing playback behavior.
 - A read-only test with an existing Apple session passed catalog search, all five library categories, artist details, paused restore, and queue editing. It requested no audio and created no playlist.
