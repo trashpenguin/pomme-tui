@@ -1,4 +1,5 @@
 mod catalog;
+mod media_keys;
 mod controller;
 mod signin;
 use anyhow::{Context, Result, bail};
@@ -152,6 +153,9 @@ async fn main() -> Result<()> {
             }
         }
     });
+    let (media_tx,mut media_rx)=tokio::sync::mpsc::unbounded_channel();
+    let mut media:Option<media_keys::Bridge>=None;
+    let mut media_tick=tokio::time::interval(Duration::from_millis(500));
     let mut session = None;
     let mut control: Option<Controller> = None;
     let mut catalog = None;
@@ -177,6 +181,15 @@ async fn main() -> Result<()> {
             }
         }
         tokio::select! {
+            _=media_tick.tick()=>{if let (Some(bridge),Some(ctrl))=(media.as_ref(),control.as_ref()){
+                let track=ctrl.queue.items.get(ctrl.queue.pos);
+                bridge.update(media_keys::Display{title:track.map_or(String::new(),|t|t.title.clone()),artist:track.map_or(String::new(),|t|t.artist.clone()),playing:ctrl.playing,enabled:ctrl.authed && track.is_some()});
+            }},
+            Some(action)=media_rx.recv()=>{if let Some(ctrl)=control.as_mut(){if ctrl.authed {let result=match action {
+                media_keys::Action::Play=>{if ctrl.paused || ctrl.ended {ctrl.play_pause()}else{Ok(())}},
+                media_keys::Action::Pause=>{if !ctrl.paused && !ctrl.queue.items.is_empty(){ctrl.play_pause()}else{Ok(())}},
+                media_keys::Action::Next=>ctrl.next(true),media_keys::Action::Previous=>ctrl.previous()
+            };if result.is_err(){ctrl.error="Media-key action could not complete".into();}}}},
             _=save_tick.tick()=>{if let Some(ctrl)=control.as_ref(){if ctrl.authed{let _=ctrl.save_session();}}},
             _=tokio::signal::ctrl_c()=>break,
             input=incoming.recv()=>{
@@ -195,6 +208,7 @@ async fn main() -> Result<()> {
                                 if widevine::require().is_err(){write_response(Response::error(id,"Widevine is unavailable. Start Pomme.exe, or run pomme doctor; install Google Chrome x64 if missing."))?;continue;}
                                 catalog=Some(catalog::Catalog{api:restored.api.clone()});let mut restored_control=Controller::new(restored.playback.clone());
                                 if restored_control.restore_session().is_err(){restored_control.error="Saved session could not be restored".into();}
+                                if media.is_none(){match media_keys::Bridge::start(media_tx.clone()){Ok(bridge)=>media=Some(bridge),Err(_)=>restored_control.error="Windows media controls unavailable".into()}}
                                 control=Some(restored_control);session=Some(restored);
                             },
                             Ok(Ok(None))=>{},

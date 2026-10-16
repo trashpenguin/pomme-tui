@@ -29,6 +29,6 @@ music = { path = "../sonora/crates/music", default-features = false, features = 
 widevine = { path = "../sonora/crates/widevine", features = ["cdm"], optional = true }
 webview = { path = "../sonora/crates/webview", optional = true }
 tokio = { version = "1.53", features = ["rt-multi-thread", "macros", "sync", "time", "io-util", "io-std", "signal"], optional = true }
-windows = { version = "0.62", features = ["Win32_System_Com", "Win32_UI_WindowsAndMessaging"], optional = true }
+windows = { version = "0.62", features = ["Win32_System_Com", "Win32_System_WinRT", "Media", "Win32_UI_WindowsAndMessaging"], optional = true }
 [patch.crates-io]
 rodio = { git = "https://github.com/RustAudio/rodio", rev = "4aa22e85e5ad5565c45dfdda95051158eb6b56c3" }

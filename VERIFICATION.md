@@ -1,3 +1,18 @@
+# Pomme TUI 0.2.0 candidate verification
+
+Checked on 16 October 2026 on Windows. The public release remains 0.1.2 while this candidate is being verified.
+
+- Frontend tests and Go vet passed, including search history, mini-player layout, sleep-timer expiry, and paginated help.
+- Rust library tests passed (12). Controller checks cover paused session restoration, queue reorder/remove/clear, and existing playback behavior.
+- A read-only test with an existing Apple session passed catalog search, all five library categories, artist details, paused restore, and queue editing. It requested no audio and created no playlist.
+- The initial media-key implementation failed the user's external-keyboard test. The replacement uses Windows System Media Transport Controls; compilation passed, and physical-key validation is pending.
+- GitHub's Windows build exposed a Windows PowerShell compatibility issue in the release test. Sending UTF-8 bytes directly fixes the unavailable StandardInputEncoding property and prevents a BOM. The revised release test passed under Windows PowerShell 5.1 locally; hosted CI must be rerun.
+- Release tests cover installation to a path with spaces, corruption rejection, version, audio options, dependency errors, isolated fresh-profile startup, shutdown, and binary privacy checks.
+- The 0.2.0 candidate adds paged library browsing, saved paused sessions, queue editing, playlist creation, mini mode, sleep timer, search history, and original logo assets.
+
+Still requiring manual validation: external keyboard play/pause and skip in the replacement build, playlist creation, a clean Windows installation, and a fresh Apple sign-in. No new RAM benchmark is claimed. Dependency-advisory results below are historical and have not been rerun for this candidate.
+
+---
 # Pomme TUI 0.1.0 verification
 
 Checked on 14 October 2026 on a Windows development PC. This is a prerelease preparation record, not a claim of exhaustive testing.

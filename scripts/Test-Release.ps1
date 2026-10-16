@@ -51,7 +51,6 @@ try {
     $info.UseShellExecute = $false
     $info.CreateNoWindow = $true
     $info.RedirectStandardInput = $true
-    $info.StandardInputEncoding = New-Object System.Text.UTF8Encoding($false)
     $info.StandardOutputEncoding = New-Object System.Text.UTF8Encoding($false)
     $info.RedirectStandardOutput = $true
     $info.RedirectStandardError = $true
@@ -62,7 +61,11 @@ try {
     $process.StartInfo = $info
     if (!$process.Start()) { throw 'Backend did not start.' }
     try {
-        $process.StandardInput.WriteLine('{"id":1,"method":"hello","params":{}}')
+        # Windows PowerShell's .NET Framework lacks StandardInputEncoding.
+        # Write UTF-8 bytes directly so neither runtime inserts a BOM.
+        $helloBytes = [System.Text.Encoding]::UTF8.GetBytes("{`"id`":1,`"method`":`"hello`",`"params`":{}}`n")
+        $process.StandardInput.BaseStream.Write($helloBytes, 0, $helloBytes.Length)
+        $process.StandardInput.BaseStream.Flush()
         $replyTask = $process.StandardOutput.ReadLineAsync()
         if (!$replyTask.Wait(30000)) { throw 'Fresh profile hello timed out.' }
         if ([string]::IsNullOrWhiteSpace($replyTask.Result)) {
@@ -73,7 +76,9 @@ try {
         $reply = $replyTask.Result | ConvertFrom-Json
         if ($reply.error) { throw "Fresh profile hello failed: $($reply.error)" }
         if ($reply.id -ne 1 -or $reply.result.protocol -ne 1 -or $reply.result.authed -ne $false) { throw "Fresh profile protocol assertion failed: $($replyTask.Result)" }
-        $process.StandardInput.WriteLine('{"id":2,"method":"shutdown","params":{}}')
+        $shutdownBytes = [System.Text.Encoding]::UTF8.GetBytes("{`"id`":2,`"method`":`"shutdown`",`"params`":{}}`n")
+        $process.StandardInput.BaseStream.Write($shutdownBytes, 0, $shutdownBytes.Length)
+        $process.StandardInput.BaseStream.Flush()
         $process.StandardInput.Close()
         if (!$process.WaitForExit(10000) -or $process.ExitCode -ne 0) { throw 'Backend did not shut down cleanly.' }
     } finally {

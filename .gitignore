@@ -16,3 +16,7 @@ credentials.json
 
 *.syso
 *.res
+
+session.json
+session.tmp
+search-history.json
