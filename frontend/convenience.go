@@ -70,5 +70,5 @@ func (m model) miniView() string {
 	if !m.sleepUntil.IsZero() {
 		timer = " | sleep " + time.Until(m.sleepUntil).Round(time.Second).String()
 	}
-	return pad("POMME >_  "+state+timer, w) + "\n" + pad(m.st.Now.Title+" - "+m.st.Now.Artist, w) + "\n" + m.progressBar(w, progress) + "\n" + pad(fmtTime(m.st.Pos)+" / "+fmtTime(m.st.Dur), w) + "\n" + pad("Space pause | n/p skip | m expand | T timer | q quit", w) + "\n" + pad(fmt.Sprint(m.note), w)
+	return pad("pomme >_  "+state+timer, w) + "\n" + pad(m.st.Now.Title+" - "+m.st.Now.Artist, w) + "\n" + m.progressBar(w, progress) + "\n" + pad(fmtTime(m.st.Pos)+" / "+fmtTime(m.st.Dur), w) + "\n" + pad("Space pause | n/p skip | m expand | T timer | q quit", w) + "\n" + pad(fmt.Sprint(m.note), w)
 }

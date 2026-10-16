@@ -1603,7 +1603,7 @@ func (m model) View() string {
 	}
 	lay := m.layout()
 
-	left := panel(m.queueTitle(), m.queuePanel(lay.qw, lay.qh), lay.qw, lay.qh,
+	left := panel("pomme · "+m.queueTitle(), m.queuePanel(lay.qw, lay.qh), lay.qw, lay.qh,
 		m.focus == focusQueue, m.pulsedAccent())
 	if lay.recH > 0 {
 		left = lipgloss.JoinVertical(lipgloss.Left, left,
