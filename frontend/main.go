@@ -65,6 +65,9 @@ type (
 		err error
 	}
 	searchMsg struct {
+		category string
+		offset   int
+
 		res       engine.SearchResults
 		err       error
 		keepInput bool // library load keeps the input focused
@@ -99,6 +102,18 @@ func tick() tea.Cmd {
 }
 
 type model struct {
+	helpPage int
+
+	saveQueueUntil time.Time
+
+	libraryCategory int
+	libraryOffset   int
+	mini            bool
+	sleepUntil      time.Time
+	sleepChoice     int
+	searchHistory   []string
+	historyIndex    int
+
 	w, h        int
 	t           float64 // seconds since start, drives animation
 	phase       phase
@@ -458,6 +473,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.focus = focusPlayer // the grid just shrank out of the layout
 		}
 	case tickMsg:
+		if !m.sleepUntil.IsZero() && !time.Now().Before(m.sleepUntil) {
+			m.sleepUntil = time.Time{}
+			m.note, m.noteAt = "Sleep timer finished", m.t
+			if m.eng != nil {
+				return m, tea.Batch(tick(), doCmd(m.eng.Pause))
+			}
+		}
 		var visualizerClose tea.Cmd
 		now := time.Time(msg)
 		m.t += 1.0 / 30
@@ -671,6 +693,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.failAudioInitialization()
 		}
 	case searchMsg:
+		if msg.category != "" {
+			m.sTab = map[string]int{"songs": 1, "favorites": 1, "albums": 2, "playlists": 3, "artists": 4}[msg.category]
+			m.note, m.noteAt = fmt.Sprintf("Library %s | page %d | Ctrl+L category | PgUp/PgDn", msg.category, msg.offset/50+1), m.t
+		}
 		m.sBusy = false
 		if msg.err != nil {
 			m.note, m.noteAt = msg.err.Error(), m.t
@@ -714,6 +740,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Any key dismisses help, and that key does nothing else — reading the
 		// list should never fire the command you were looking up.
 		if m.helpOpen {
+			if msg.String() == "pgdown" || msg.String() == "right" {
+				m.helpPage = min(m.helpPage+1, 3)
+				return m, nil
+			}
+			if msg.String() == "pgup" || msg.String() == "left" {
+				m.helpPage = max(0, m.helpPage-1)
+				return m, nil
+			}
 			m.helpOpen = false
 			return m, nil
 		}
@@ -761,6 +795,9 @@ func (m model) recentVisible() bool {
 
 func (m model) updateKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.phase != phaseReady {
+		if msg.String() == "R" && m.phase == phaseFail {
+			return m.reconnect("retrying connection...")
+		}
 		if s := msg.String(); s == "q" || s == "ctrl+c" {
 			m.closeVisualizerAsync()
 			return m, tea.Quit
@@ -800,10 +837,62 @@ func (m model) updateKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "r":
 		return m, doCmd(eng.CycleRepeat)
 	case "?":
+		m.helpPage = 0
 		m.helpOpen = true
 	case "a":
 		m.acctOpen, m.acctLoading = true, true
 		return m, accountCmd(eng)
+	case "S":
+		if time.Now().After(m.saveQueueUntil) {
+			m.saveQueueUntil = time.Now().Add(5 * time.Second)
+			m.note, m.noteAt = "Press S again within 5s to save queue to Apple Music", m.t
+			return m, nil
+		}
+		m.saveQueueUntil = time.Time{}
+		name := "Pomme Queue " + time.Now().Format("2006-01-02 15:04")
+		return m, func() tea.Msg {
+			if err := eng.SavePlaylist(name); err != nil {
+				return noteMsg(err.Error())
+			}
+			return noteMsg("Saved playlist: " + name)
+		}
+	case "L":
+		m.searchOpen = true
+		m.sInput = false
+		m.sBusy = true
+		m.libraryOffset = 0
+		return m, m.pagedLibraryCmd()
+	case "delete":
+		if m.focus == focusQueue {
+			index := m.selIdx
+			return m, doCmd(func() error { return eng.EditQueue("remove", index, 0) })
+		}
+	case "ctrl+up", "ctrl+down":
+		if m.focus == focusQueue {
+			index := m.selIdx
+			target := index - 1
+			if msg.String() == "ctrl+down" {
+				target = index + 1
+			}
+			if target >= 0 && target < len(m.st.Queue) {
+				m.selIdx = target
+				return m, doCmd(func() error { return eng.EditQueue("move", index, target) })
+			}
+		}
+	case "ctrl+delete":
+		return m, doCmd(func() error { return eng.EditQueue("clear", 0, 0) })
+	case "m":
+		m.mini = !m.mini
+	case "T":
+		choices := []int{0, 15, 30, 60, 90}
+		m.sleepChoice = (m.sleepChoice + 1) % len(choices)
+		m.sleepUntil = time.Time{}
+		m.note = "Sleep timer off"
+		if minutes := choices[m.sleepChoice]; minutes > 0 {
+			m.sleepUntil = time.Now().Add(time.Duration(minutes) * time.Minute)
+			m.note = fmt.Sprintf("Sleep in %d minutes", minutes)
+		}
+		m.noteAt = m.t
 	case "v":
 		m.vizMode = (m.vizMode + 1) % vizModes
 		saveVizMode(m.vizMode)
@@ -1462,12 +1551,12 @@ func (m model) progressBar(barW, filled int) string {
 }
 
 func (m model) bootView() string {
-	logo := lipgloss.NewStyle().Foreground(accentHi).Bold(true).Render("pomme")
+	logo := lipgloss.NewStyle().Foreground(accentHi).Bold(true).Render("[ >_ ] pomme")
 	sub := lipgloss.NewStyle().Foreground(fgFaint).Render("apple music in your terminal")
 	var line string
 	if m.phase == phaseFail {
 		line = lipgloss.NewStyle().Foreground(accent).Render("✕ "+m.status) +
-			lipgloss.NewStyle().Foreground(fgFaint).Render("  ·  q quit")
+			lipgloss.NewStyle().Foreground(fgFaint).Render("  ·  R retry · q quit")
 	} else {
 		sp := []rune("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏")
 		line = lipgloss.NewStyle().Foreground(fgDim).
@@ -1478,6 +1567,9 @@ func (m model) bootView() string {
 }
 
 func (m model) View() string {
+	if m.mini && m.phase == phaseReady && !m.searchOpen && !m.helpOpen && !m.acctOpen {
+		return m.miniView()
+	}
 	if m.w < 70 || m.h < 22 {
 		return "\n  terminal too small — need at least 70×22\n"
 	}
@@ -1556,6 +1648,8 @@ func main() {
 		status:      "starting…",
 		mprisQuit:   make(chan struct{}, 1),
 	}
+	m.searchHistory = loadSearchHistory()
+	m.historyIndex = -1
 	m.cfg = loadConfig()
 	m.vizMode = loadVizMode()
 	m.scrobbler = newScrobbler(m.cfg)

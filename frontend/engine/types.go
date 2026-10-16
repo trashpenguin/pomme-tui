@@ -19,7 +19,7 @@ type State struct {
 	QueuePos                      int
 	Err                           string
 }
-type SearchResults struct{ Songs, Albums, Playlists, Recent []Track }
+type SearchResults struct{ Songs, Albums, Playlists, Recent, Artists []Track }
 type Account struct {
 	Name       string `json:"name"`
 	Handle     string `json:"handle"`

@@ -162,6 +162,7 @@ async fn main() -> Result<()> {
     let mut queued = BTreeMap::new();
     let mut queue_sequence = 0;
     let mut next_queue = 1;
+    let mut save_tick=tokio::time::interval(Duration::from_secs(15));
     loop {
         if control.as_ref().is_some_and(|ctrl| !ctrl.authed) {
             jobs.abort_all();
@@ -176,6 +177,7 @@ async fn main() -> Result<()> {
             }
         }
         tokio::select! {
+            _=save_tick.tick()=>{if let Some(ctrl)=control.as_ref(){if ctrl.authed{let _=ctrl.save_session();}}},
             _=tokio::signal::ctrl_c()=>break,
             input=incoming.recv()=>{
                 let request=match input {
@@ -185,13 +187,15 @@ async fn main() -> Result<()> {
                 };
                 let id=request.id;let method=request.method.as_str();
                 if active.contains(&id){write_response(Response::error(id,"duplicate active request ID"))?;continue;}
-                if method=="shutdown"{write_response(Response::ok(id,true))?;break;}
+                if method=="shutdown"{if let Some(ctrl)=control.as_ref(){let _=ctrl.save_session();}write_response(Response::ok(id,true))?;break;}
                 if method=="hello" {
                     if control.is_none(){
                         match tokio::time::timeout(Duration::from_secs(45),provider.restore()).await {
                             Ok(Ok(Some(restored)))=>{
-                                if widevine::require().is_err(){write_response(Response::error(id,"installed Widevine module is unavailable"))?;continue;}
-                                catalog=Some(catalog::Catalog{api:restored.api.clone()});control=Some(Controller::new(restored.playback.clone()));session=Some(restored);
+                                if widevine::require().is_err(){write_response(Response::error(id,"Widevine is unavailable. Start Pomme.exe, or run pomme doctor; install Google Chrome x64 if missing."))?;continue;}
+                                catalog=Some(catalog::Catalog{api:restored.api.clone()});let mut restored_control=Controller::new(restored.playback.clone());
+                                if restored_control.restore_session().is_err(){restored_control.error="Saved session could not be restored".into();}
+                                control=Some(restored_control);session=Some(restored);
                             },
                             Ok(Ok(None))=>{},
                             _=>{write_response(Response::error(id,"Apple Music session could not be restored; sign in again"))?;continue;},
@@ -201,27 +205,33 @@ async fn main() -> Result<()> {
                 }
                 let Some(ctrl)=control.as_mut() else{write_response(Response::error(id,"Apple Music sign-in required"))?;continue;};
                 if !ctrl.authed && method!="state" {write_response(Response::error(id,"Apple Music authentication expired; sign in again"))?;continue;}
-                if ["search","library","play","queue_next","queue_later"].contains(&method){
+                if ["search","library","library_page","artist_page","save_playlist","play","queue_next","queue_later"].contains(&method){
                     if jobs.len()>=8{write_response(Response::error(id,"too many catalog requests; try again"))?;continue;}
                     if method=="play"{ctrl.generation=ctrl.generation.wrapping_add(1);}
                     let generation=ctrl.generation;let cat=catalog.as_ref().unwrap().clone();
                     let sequence=if method=="queue_next"||method=="queue_later"{queue_sequence+=1;queue_sequence}else{0};
+                    let saved_queue=if method=="save_playlist" {ctrl.queue.items.clone()} else {Vec::new()};
                     active.insert(id);
                     jobs.spawn(async move {
-                        let result=tokio::time::timeout(Duration::from_secs(30),async {
+                        let result=tokio::time::timeout(Duration::from_secs(if request.method=="save_playlist" {300} else {30}),async {
                             match request.method.as_str(){
+                                "save_playlist"=>cat.save_queue(string(&request.params,"name")?,&saved_queue).await.map(Data::Results),
                                 "search"=>cat.search(string(&request.params,"query")?).await.map(Data::Results),
+                                "library_page"=>cat.library_page(string(&request.params,"category")?,number(&request.params,"offset")? as usize).await.map(Data::Results),
+                                "artist_page"=>cat.artist_page(string(&request.params,"id")?).await.map(Data::Results),
                                 "library"=>cat.library().await.map(Data::Results),
                                 _=>cat.resolve(string(&request.params,"kind")?,string(&request.params,"id")?).await.map(Data::Tracks),
                             }
-                        }).await.unwrap_or_else(|_|Err(anyhow::anyhow!("catalog request timed out")));
+                        }).await.unwrap_or_else(|_|Err(anyhow::anyhow!("request timed out; a playlist save may have completed partially")));
                         Completed{id,method:request.method,generation,sequence,result}
                     });continue;
                 }
                 let result:Result<Value>=(||{
                     match method {
+                        "queue_edit"=>{ctrl.edit_queue(string(&request.params,"action")?, request.params["index"].as_u64().unwrap_or(0) as usize, request.params["target"].as_u64().unwrap_or(0) as usize)?;Ok(json!(true))},
                         "state"=>Ok(serde_json::to_value(ctrl.snapshot())?),
                         "spectrum"=>Ok(json!(ctrl.spectrum())),
+                        "pause"=>{if !ctrl.paused && !ctrl.queue.items.is_empty(){ctrl.play_pause()?;}Ok(json!(true))},
                         "play_pause"=>{ctrl.play_pause()?;Ok(json!(true))},
                         "next"=>{ctrl.next(true)?;Ok(json!(true))},
                         "prev"=>{ctrl.previous()?;Ok(json!(true))},
@@ -232,7 +242,7 @@ async fn main() -> Result<()> {
                         "cycle_repeat"=>{ctrl.queue.cycle_repeat();Ok(json!(true))},
                         "reload"=>{ctrl.recover()?;Ok(json!(true))},
                         "account"=>Ok(json!({"name":session.as_ref().map(|s|s.profile.display_name.clone()).unwrap_or_default(),"handle":"","country":provider.location().unwrap_or_default(),"storefront":""})),
-                        "sign_out"=>{ctrl.invalidate_auth();provider.sign_out();Ok(json!(true))},
+                        "sign_out"=>{let _=ctrl.edit_queue("clear",0,0);ctrl.invalidate_auth();provider.sign_out();Ok(json!(true))},
                         _=>bail!("unknown method"),
                     }
                 })();
@@ -264,6 +274,7 @@ async fn main() -> Result<()> {
         }
     }
     jobs.abort_all();
+    if let Some(ctrl)=control.as_ref(){let _=ctrl.save_session();}
     drop(control);
     Ok(())
 }

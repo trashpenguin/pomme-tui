@@ -1,4 +1,4 @@
-param([string]$Version = '0.1.0', [switch]$SkipTests)
+param([string]$Version = '0.2.0', [switch]$SkipTests)
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'Pomme.Helpers.ps1')
 $root = Split-Path $PSScriptRoot -Parent
@@ -31,12 +31,24 @@ finally {
     $env:AWS_LC_SYS_CFLAGS = $savedNativeFlags
 }
 Invoke-Checked -Tool go -Arguments @('-C',(Join-Path $root 'frontend'),'build','-trimpath','-ldflags',"-s -w -X main.version=$Version",'-o',(Join-Path $release 'pomme-ui.exe'),'.')
+Push-Location (Join-Path $root 'assets')
+try {
+ $rc = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\rc.exe" | Sort-Object FullName -Descending | Select-Object -First 1
+ $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+ $vs = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+ $cvtres = Get-ChildItem "$vs\VC\Tools\MSVC\*\bin\Hostx64\x64\cvtres.exe" | Sort-Object FullName -Descending | Select-Object -First 1
+ if (!$rc -or !$cvtres) { throw 'Windows SDK resource tools are required to build the launcher icon.' }
+ Invoke-Checked -Tool $rc.FullName -Arguments @('/nologo','/fo','pomme.res','pomme.rc')
+ Invoke-Checked -Tool $cvtres.FullName -Arguments @('/nologo','/machine:x64',('/out:' + (Join-Path $root 'frontend\cmd\pomme\icon_windows_amd64.syso')),'pomme.res')
+} finally { Pop-Location }
 Invoke-Checked -Tool go -Arguments @('-C',(Join-Path $root 'frontend'),'build','-trimpath','-ldflags','-s -w','-o',(Join-Path $release 'Pomme.exe'),'./cmd/pomme')
 Copy-Item -LiteralPath (Join-Path $root 'target\release\apple-native-engine.exe') -Destination $release
 & (Join-Path $PSScriptRoot 'Remove-NativeSourcePaths.ps1') -Path (Join-Path $release 'apple-native-engine.exe')
 foreach ($name in @('pomme.cmd','Run-Pomme.ps1','Pomme.Helpers.ps1','Start Pomme.cmd','Sign In.cmd','Install.ps1')) { Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination $release }
 foreach ($name in @('README.md','LICENSE','NOTICE.md','THIRD-PARTY.md')) { Copy-Item -LiteralPath (Join-Path $root $name) -Destination $release }
 Copy-Item -LiteralPath (Join-Path $root 'frontend\LICENSE') -Destination (Join-Path $release 'LICENSE-AMTUI.txt')
+New-Item -ItemType Directory -Force (Join-Path $release 'assets') | Out-Null
+foreach ($asset in @('pomme.svg','pomme.png','pomme.ico')) { Copy-Item (Join-Path $root ('assets\' + $asset)) (Join-Path $release 'assets') }
 Copy-Item -LiteralPath (Join-Path $root 'licenses') -Destination $release -Recurse
 $sums = foreach ($name in @('pomme-ui.exe','apple-native-engine.exe','Pomme.exe')) { '{0}  {1}' -f (Get-PommeSha256 -Path (Join-Path $release $name)), $name }
 $sums | Set-Content -LiteralPath (Join-Path $release 'SHA256SUMS.txt') -Encoding ascii

@@ -63,8 +63,14 @@ try {
         $process.StandardInput.WriteLine('{"id":1,"method":"hello","params":{}}')
         $replyTask = $process.StandardOutput.ReadLineAsync()
         if (!$replyTask.Wait(30000)) { throw 'Fresh profile hello timed out.' }
+        if ([string]::IsNullOrWhiteSpace($replyTask.Result)) {
+            $process.WaitForExit(5000) | Out-Null
+            $code = if ($process.HasExited) { $process.ExitCode } else { 'running' }
+            throw "Backend produced no hello response (exit: $code). Check native runtime dependencies."
+        }
         $reply = $replyTask.Result | ConvertFrom-Json
-        if ($reply.id -ne 1 -or $reply.result.protocol -ne 1 -or $reply.result.authed -ne $false) { throw 'Fresh profile inherited another application session.' }
+        if ($reply.error) { throw "Fresh profile hello failed: $($reply.error)" }
+        if ($reply.id -ne 1 -or $reply.result.protocol -ne 1 -or $reply.result.authed -ne $false) { throw "Fresh profile protocol assertion failed: $($replyTask.Result)" }
         $process.StandardInput.WriteLine('{"id":2,"method":"shutdown","params":{}}')
         $process.StandardInput.Close()
         if (!$process.WaitForExit(10000) -or $process.ExitCode -ne 0) { throw 'Backend did not shut down cleanly.' }

@@ -116,6 +116,9 @@ func TestReadyStartsVisualizerOpenAlongsideInitialStateFetch(t *testing.T) {
 
 	next, cmd := m.Update(readyMsg{eng: &engine.Engine{}})
 	got := next.(model)
+	if got.mpris != nil {
+		defer got.mpris.Close()
+	}
 
 	if !got.vizOpening {
 		t.Fatal("ready should mark the visualizer as opening")
@@ -128,8 +131,12 @@ func TestReadyStartsVisualizerOpenAlongsideInitialStateFetch(t *testing.T) {
 	if !ok {
 		t.Fatalf("ready command returned %T, want tea.BatchMsg", msg)
 	}
-	if len(batch) != 3 {
-		t.Fatalf("ready batch contains %d commands, want 3", len(batch))
+	want := 3
+	if got.mpris != nil {
+		want++
+	}
+	if len(batch) != want {
+		t.Fatalf("ready batch contains %d commands, want %d", len(batch), want)
 	}
 }
 

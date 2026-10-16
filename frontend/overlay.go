@@ -9,10 +9,12 @@ import (
 	"github.com/k1y0miiii/applemusic-tui/engine"
 )
 
-var tabNames = [4]string{"RECENT", "SONGS", "ALBUMS", "PLAYLISTS"}
+var tabNames = [5]string{"RECENT", "SONGS", "ALBUMS", "PLAYLISTS", "ARTISTS"}
 
 func (m model) curList() []engine.Track {
 	switch m.sTab {
+	case 4:
+		return m.sRes.Artists
 	case 1:
 		return m.sRes.Songs
 	case 2:
@@ -43,11 +45,37 @@ func (m model) updateSearch(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	eng := m.eng
 	list := m.curList()
 	switch msg.String() {
+	case "ctrl+l":
+		m.libraryCategory = (m.libraryCategory + 1) % 5
+		m.libraryOffset = 0
+		m.sBusy = true
+		return m, m.pagedLibraryCmd()
+	case "pgdown", "pgup":
+		if msg.String() == "pgdown" {
+			m.libraryOffset += 50
+		} else {
+			m.libraryOffset = max(0, m.libraryOffset-50)
+		}
+		m.sBusy = true
+		return m, m.pagedLibraryCmd()
+	case "ctrl+p", "ctrl+n":
+		if len(m.searchHistory) > 0 {
+			if msg.String() == "ctrl+p" {
+				m.historyIndex = min(m.historyIndex+1, len(m.searchHistory)-1)
+			} else {
+				m.historyIndex = max(m.historyIndex-1, 0)
+			}
+			m.sQuery = m.searchHistory[m.historyIndex]
+			m.sInput = true
+		}
 	case "esc", "ctrl+c":
 		m.searchOpen = false
 	case "enter":
 		if m.sInput {
 			if strings.TrimSpace(m.sQuery) != "" {
+				m.searchHistory = rememberSearch(m.searchHistory, m.sQuery)
+				saveSearchHistory(m.searchHistory)
+				m.historyIndex = -1
 				m.sBusy = true
 				return m, m.searchCmd()
 			}
@@ -59,6 +87,11 @@ func (m model) updateSearch(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 			kind, id, title := list[m.sSel].Kind, list[m.sSel].ID, list[m.sSel].Title
+			if kind == "artist" {
+				m.sBusy = true
+				m.sTab = 1
+				return m, func() tea.Msg { res, err := eng.ArtistPage(id); return searchMsg{res: res, err: err} }
+			}
 			m.searchOpen = false
 			m.loading, m.loadSnap, m.loadStart = title, snap(m.st), m.t
 			m.loadHideQueue = true // the whole queue is being replaced
@@ -66,7 +99,7 @@ func (m model) updateSearch(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, doCmd(func() error { return eng.Play(kind, id) })
 		}
 	case "tab":
-		m.sTab, m.sSel = (m.sTab+1)%4, 0
+		m.sTab, m.sSel = (m.sTab+1)%len(tabNames), 0
 	case "/":
 		m.sInput = true
 	case "backspace":
@@ -161,7 +194,8 @@ func (m model) searchView() string {
 	case len(list) == 0:
 		body = append(body, faint.Render(" your library — albums & playlists tabs · type to search the catalog"))
 	default:
-		for i := 0; i < min(rows, len(list)); i++ {
+		start := max(0, m.sSel-rows+1)
+		for i := start; i < min(start+rows, len(list)); i++ {
 			tr := list[i]
 			line := dim.Render(" "+tr.Title) + faint.Render(" — "+tr.Artist)
 			if tr.Duration > 0 {
@@ -185,4 +219,15 @@ func (m model) searchView() string {
 		Width(iw).Render(content)
 	title := pink.Bold(true).Render("SEARCH APPLE MUSIC")
 	return lipgloss.Place(m.w, m.h, lipgloss.Center, lipgloss.Center, title+"\n"+box)
+}
+
+func (m model) pagedLibraryCmd() tea.Cmd {
+	categories := []string{"songs", "albums", "playlists", "artists", "favorites"}
+	category := categories[m.libraryCategory]
+	offset := m.libraryOffset
+	eng := m.eng
+	return func() tea.Msg {
+		res, err := eng.LibraryPage(category, offset)
+		return searchMsg{res: res, err: err, category: category, offset: offset}
+	}
 }

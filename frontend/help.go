@@ -60,6 +60,11 @@ var helpSections = []helpSection{
 	}},
 	{"BROWSING", []helpEntry{
 		{"/", "search"},
+		{"L", "library pages"},
+		{"del", "remove track"},
+		{"ctrl+up/dn", "reorder queue"},
+		{"ctrl+del", "clear queue"},
+		{"S twice", "save playlist"},
 		{"tab", "cycle focus"},
 		{"j k / ↑ ↓", "move selection"},
 		{"↵", "play selection"},
@@ -69,10 +74,15 @@ var helpSections = []helpSection{
 		{"↵", "search / play"},
 		{"tab", "next category"},
 		{"a / A", "queue end / next"},
+		{"ctrl+p/n", "search history"},
+		{"ctrl+l", "library category"},
+		{"pgup/dn", "library page"},
 		{"esc", "close"},
 	}},
 	{"LOOK", []helpEntry{
 		{"v", "visualizer"},
+		{"m", "mini player"},
+		{"T", "sleep timer"},
 		{"t", "cycle theme"},
 	}},
 	{"OTHER", []helpEntry{
@@ -161,7 +171,10 @@ func (m model) helpView() string {
 	}
 
 	iw := lipgloss.Width(body[0])
-	content := strings.Join(body, "\n") + "\n\n" + pad(faint.Render(" any key closes"), iw)
+	pageSize := max(1, m.h-6)
+	start := min(m.helpPage*pageSize, max(0, len(body)-pageSize))
+	body = body[start:min(start+pageSize, len(body))]
+	content := strings.Join(body, "\n") + "\n\n" + pad(faint.Render(" PgUp/PgDn pages | other key closes"), iw)
 	box := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).BorderForeground(accent).
 		Width(iw).Render(content)

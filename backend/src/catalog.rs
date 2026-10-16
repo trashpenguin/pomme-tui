@@ -40,6 +40,43 @@ fn playlist(playlist: Playlist) -> WireTrack {
     }
 }
 impl Catalog {
+    pub async fn save_queue(&self,name:&str,tracks:&[WireTrack])->Result<SearchResults>{
+        anyhow::ensure!(!name.trim().is_empty() && name.len()<=120 && !tracks.is_empty(),"invalid playlist");
+        let id=self.api.create_playlist(name).await?;
+        for (index,track) in tracks.iter().enumerate(){
+            if self.api.add_track_to_playlist(&id,&track.id).await.is_err(){
+                return Ok(SearchResults{err:format!("Playlist created, but only {} of {} tracks were added",index,tracks.len()),..Default::default()});
+            }
+        }
+        Ok(SearchResults::default())
+    }
+    pub async fn library_page(&self, category:&str, offset:usize) -> Result<SearchResults> {
+        anyhow::ensure!(offset<=10000,"library page is too far");
+        let mut result=SearchResults::default();
+        match category {
+            "songs" | "favorites" => {
+                let mut pages=if category=="favorites" {self.api.saved_tracks_paged().await?} else {self.api.all_tracks_paged().await?};
+                let mut seen=0;
+                while let Some(page)=pages.recv().await {
+                    for track in page?.items {if seen>=offset && result.songs.len()<50 {result.songs.push(song(track))} seen+=1;}
+                    if result.songs.len()==50 {break}
+                }
+            },
+            "albums" => {let mut pages=self.api.all_albums_paged().await?;let mut seen=0;
+                while let Some(page)=pages.recv().await {for item in page?.items {if seen>=offset && result.albums.len()<50 {result.albums.push(album(item))}seen+=1;}if result.albums.len()==50 {break}}
+            },
+            "artists" => {let mut pages=self.api.all_artists_paged().await?;let mut seen=0;
+                while let Some(page)=pages.recv().await {for item in page?.items {if seen>=offset && result.artists.len()<50 {result.artists.push(WireTrack{id:item.id,title:item.name,kind:"artist".into(),art:item.cover.unwrap_or_default(),..Default::default()})}seen+=1;}if result.artists.len()==50 {break}}
+            },
+            "playlists" => {result.playlists=self.api.playlists().await?.into_iter().skip(offset).take(50).map(playlist).collect()},
+            _ => bail!("invalid library category")
+        }
+        Ok(result)
+    }
+    pub async fn artist_page(&self,id:&str)->Result<SearchResults>{
+        let artist=self.api.artist(id).await?;
+        Ok(SearchResults{songs:artist.top_tracks.into_iter().map(song).collect(),albums:artist.albums.into_iter().map(album).collect(),..Default::default()})
+    }
     /// Independent groups can succeed even if Apple declines another result type.
     pub async fn search(&self, query: &str) -> Result<SearchResults> {
         anyhow::ensure!(

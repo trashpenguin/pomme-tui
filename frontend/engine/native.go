@@ -130,8 +130,11 @@ func (e *Engine) Close() {
 }
 func (e *Engine) call(method string, params any, out any) error {
 	timeout := 5 * time.Second
-	if method == "search" || method == "library" || method == "play" || method == "queue_next" || method == "queue_later" {
+	if method == "search" || method == "library" || method == "save_playlist" || method == "library_page" || method == "artist_page" || method == "play" || method == "queue_next" || method == "queue_later" {
 		timeout = 35 * time.Second
+	}
+	if method == "save_playlist" {
+		timeout = 310 * time.Second
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
@@ -166,13 +169,13 @@ func (e *Engine) Spectrum() ([32]float64, error) {
 }
 func (e *Engine) results(method string, params any) (SearchResults, error) {
 	var raw struct {
-		Songs, Albums, Playlists, Recent []wireTrack
-		Err                              string
+		Songs, Albums, Playlists, Recent, Artists []wireTrack
+		Err                                       string
 	}
 	if err := e.call(method, params, &raw); err != nil {
 		return SearchResults{}, err
 	}
-	result := SearchResults{Songs: tracks(raw.Songs), Albums: tracks(raw.Albums), Playlists: tracks(raw.Playlists), Recent: tracks(raw.Recent)}
+	result := SearchResults{Songs: tracks(raw.Songs), Albums: tracks(raw.Albums), Playlists: tracks(raw.Playlists), Recent: tracks(raw.Recent), Artists: tracks(raw.Artists)}
 	if raw.Err != "" {
 		return result, errors.New(raw.Err)
 	}
@@ -210,3 +213,20 @@ func (e *Engine) QueueNext(kind, id string) error {
 func (e *Engine) QueueLater(kind, id string) error {
 	return e.call("queue_later", map[string]any{"kind": kind, "id": id}, nil)
 }
+
+func (e *Engine) EditQueue(action string, index, target int) error {
+	return e.call("queue_edit", map[string]any{"action": action, "index": index, "target": target}, nil)
+}
+func (e *Engine) LibraryPage(category string, offset int) (SearchResults, error) {
+	return e.results("library_page", map[string]any{"category": category, "offset": offset})
+}
+func (e *Engine) ArtistPage(id string) (SearchResults, error) {
+	return e.results("artist_page", map[string]any{"id": id})
+}
+
+func (e *Engine) SavePlaylist(name string) error {
+	_, err := e.results("save_playlist", map[string]any{"name": name})
+	return err
+}
+
+func (e *Engine) Pause() error { return e.call("pause", nil, nil) }

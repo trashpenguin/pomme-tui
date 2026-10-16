@@ -1,5 +1,7 @@
 # Pomme TUI
 
+<img src="assets/pomme.svg" width="96" alt="Pomme terminal apple logo">
+
 **Apple Music. Straight from your terminal.**
 
 A Windows terminal player with native audio playback, search, a queue, synced lyrics, artwork, themes, and visualizers. An active Apple Music subscription is required. Pomme is an unofficial community project, independent of Apple.
@@ -111,3 +113,17 @@ The interface is a modified [applemusic-tui](https://github.com/k1y0miiii/applem
 - `Pomme.exe` launcher; opening `pomme-ui.exe` directly also runs dependency setup when needed.
 
 Local UI tests, package checks, direct-launch setup, and authenticated backend catalog checks passed. Clean-machine playback remains unverified; this is an unsigned prerelease.
+
+## New in 0.2.0
+
+- **Session restore:** queue, selected track, position, volume, shuffle and repeat are saved every 15 seconds and on normal exit. Reopening restores paused. Signing out clears the saved queue.
+- **Library:** press `L`, then `Ctrl+L` to cycle songs, albums, playlists, artists and favorites. `PgUp`/`PgDn` fetch 50-item pages. Select an artist to browse their tracks and albums. Apple library permissions and availability still apply.
+- **Queue:** `Delete` removes the selected track, `Ctrl+Up/Down` moves it, and `Ctrl+Delete` clears the queue. Press `S` twice within five seconds to save a dated playlist to Apple Music. A failed or interrupted save may leave a partial playlist; check your library before retrying.
+- **Media keys:** Windows play/pause, next and previous keys work while Pomme is in the background. Another application's exclusive hotkey registration can prevent this. Windows lock-screen metadata integration is not included.
+- **Mini player:** `m` toggles the compact view; it also fits smaller terminals.
+- **Sleep timer:** `T` cycles off / 15 / 30 / 60 / 90 minutes. Expiry pauses playback; timers are not restored after exit.
+- **Search history:** `Ctrl+P` and `Ctrl+N` recall up to 30 searches in the search overlay. History stays in your local settings folder.
+- **Help:** `?`, then `PgUp/PgDn` to browse controls.
+- **Logo:** original Pomme apple/terminal artwork in `assets/`, embedded in the Windows launcher.
+
+Session and search metadata are local JSON files under the Pomme profile. They are not encrypted. No account tokens are included in session history.

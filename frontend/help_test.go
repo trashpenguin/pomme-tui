@@ -39,7 +39,10 @@ func TestHelpShowsEveryEntryWhole(t *testing.T) {
 	defer lipgloss.SetColorProfile(lipgloss.ColorProfile())
 	lipgloss.SetColorProfile(termenv.Ascii)
 
-	out := model{w: minCols, h: minRows}.helpView()
+	out := ""
+	for page := 0; page < 4; page++ {
+		out += model{w: minCols, h: minRows, helpPage: page}.helpView()
+	}
 	for _, section := range helpSections {
 		if !strings.Contains(out, section.title) {
 			t.Errorf("section %q missing from the overlay", section.title)

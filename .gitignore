@@ -13,3 +13,6 @@ credentials.json
 *.key
 *.log
 .DS_Store
+
+*.syso
+*.res

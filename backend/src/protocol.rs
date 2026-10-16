@@ -29,6 +29,10 @@ pub fn decode(bytes: &[u8]) -> anyhow::Result<Request> {
     anyhow::ensure!(
         [
             "hello",
+            "queue_edit",
+            "save_playlist",
+            "library_page",
+            "artist_page",
             "state",
             "spectrum",
             "search",
@@ -37,6 +41,7 @@ pub fn decode(bytes: &[u8]) -> anyhow::Result<Request> {
             "queue_next",
             "queue_later",
             "play_pause",
+            "pause",
             "next",
             "prev",
             "jump",
@@ -75,6 +80,7 @@ pub struct WireState {
 #[derive(Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SearchResults {
+    pub artists: Vec<WireTrack>,
     pub songs: Vec<WireTrack>,
     pub albums: Vec<WireTrack>,
     pub playlists: Vec<WireTrack>,
