@@ -590,7 +590,7 @@ func TestFreshFrameAfterStaleSilenceRestoresTargets(t *testing.T) {
 	}
 
 	close(secondRead)
-	second := waitForVisualizerFrameAfter(t, service, first.At)
+	second := waitForVisualizerFrameAfter(t, service, first)
 	next, _ = silent.Update(tickMsg(second.At))
 	resumed := next.(model)
 
@@ -735,12 +735,12 @@ func waitForVisualizerFrame(t *testing.T, service *visualizer.Service) visualize
 func waitForVisualizerFrameAfter(
 	t *testing.T,
 	service *visualizer.Service,
-	after time.Time,
+	after visualizer.Frame,
 ) visualizer.Frame {
 	t.Helper()
 	deadline := time.Now().Add(time.Second)
 	for {
-		if frame, ok := service.Latest(); ok && frame.At.After(after) {
+		if frame, ok := service.Latest(); ok && (frame.At.After(after.At) || frame.Bands != after.Bands) {
 			return frame
 		}
 		if time.Now().After(deadline) {

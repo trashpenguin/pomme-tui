@@ -12,6 +12,12 @@ try {
     if ($found -notlike '*100.0.0.0*') { throw 'CDM discovery did not select newest version.' }
     if (Find-PommeCdm -Roots @((Join-Path $fixture 'missing'))) { throw 'Missing CDM falsely detected.' }
     if ((Find-PommeCdm -Override $found) -ne $found) { throw 'Explicit CDM was not preserved.' }
+    $componentRoot = Join-Path $fixture 'components'
+    $componentDir = Join-Path $componentRoot '4.10.1000.0\_platform_specific\win_x64'
+    New-Item -ItemType Directory -Force $componentDir | Out-Null
+    $component = Join-Path $componentDir 'widevinecdm.dll'
+    Set-Content $component 'fixture'
+    if ((Find-PommeCdm -Roots @($componentRoot)) -ne $component) { throw 'Updated Chrome component was not discovered.' }
     $rejected = $false
     try { Find-PommeCdm -Override (Join-Path $fixture 'missing.dll') | Out-Null } catch { $rejected = $true }
     if (!$rejected) { throw 'Missing override was accepted.' }

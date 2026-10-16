@@ -51,6 +51,8 @@ try {
     $info.UseShellExecute = $false
     $info.CreateNoWindow = $true
     $info.RedirectStandardInput = $true
+    $info.StandardInputEncoding = New-Object System.Text.UTF8Encoding($false)
+    $info.StandardOutputEncoding = New-Object System.Text.UTF8Encoding($false)
     $info.RedirectStandardOutput = $true
     $info.RedirectStandardError = $true
     $info.EnvironmentVariables['POMME_DATA_DIR'] = $env:POMME_DATA_DIR

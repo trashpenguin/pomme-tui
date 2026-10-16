@@ -31,6 +31,7 @@ try {
     $env:APPLE_TERMINAL_OUTPUT = if ($DefaultOutput) { '' } elseif ($Output) { $Output } else { $env:POMME_OUTPUT }
     $roots = @(
         (Join-Path $env:LOCALAPPDATA 'Google\Chrome\Application'),
+        (Join-Path $env:LOCALAPPDATA 'Google\Chrome\User Data\WidevineCdm'),
         (Join-Path $env:ProgramFiles 'Google\Chrome\Application')
     )
     if (${env:ProgramFiles(x86)}) { $roots += Join-Path ${env:ProgramFiles(x86)} 'Google\Chrome\Application' }

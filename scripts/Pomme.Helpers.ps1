@@ -16,7 +16,10 @@ function Find-PommeCdm {
         $found = Get-ChildItem -LiteralPath $root -Directory -ErrorAction SilentlyContinue |
             Where-Object { $_.Name -match '^\d+(\.\d+){3}$' } |
             Sort-Object { [version]$_.Name } -Descending |
-            ForEach-Object { Join-Path $_.FullName 'WidevineCdm\_platform_specific\win_x64\widevinecdm.dll' } |
+            ForEach-Object {
+                Join-Path $_.FullName 'WidevineCdm\_platform_specific\win_x64\widevinecdm.dll'
+                Join-Path $_.FullName '_platform_specific\win_x64\widevinecdm.dll'
+            } |
             Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
         if ($found) { return $found }
     }
