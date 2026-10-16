@@ -31,16 +31,7 @@ finally {
     $env:AWS_LC_SYS_CFLAGS = $savedNativeFlags
 }
 Invoke-Checked -Tool go -Arguments @('-C',(Join-Path $root 'frontend'),'build','-trimpath','-ldflags',"-s -w -X main.version=$Version",'-o',(Join-Path $release 'pomme-ui.exe'),'.')
-Push-Location (Join-Path $root 'assets')
-try {
- $rc = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\rc.exe" | Sort-Object FullName -Descending | Select-Object -First 1
- $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
- $vs = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
- $cvtres = Get-ChildItem "$vs\VC\Tools\MSVC\*\bin\Hostx64\x64\cvtres.exe" | Sort-Object FullName -Descending | Select-Object -First 1
- if (!$rc -or !$cvtres) { throw 'Windows SDK resource tools are required to build the launcher icon.' }
- Invoke-Checked -Tool $rc.FullName -Arguments @('/nologo','/fo','pomme.res','pomme.rc')
- Invoke-Checked -Tool $cvtres.FullName -Arguments @('/nologo','/machine:x64',('/out:' + (Join-Path $root 'frontend\cmd\pomme\icon_windows_amd64.syso')),'pomme.res')
-} finally { Pop-Location }
+Invoke-Checked -Tool go -Arguments @('run','github.com/akavel/rsrc@v0.10.2','-ico',(Join-Path $root 'assets\pomme.ico'),'-arch','amd64','-o',(Join-Path $root 'frontend\cmd\pomme\icon_windows_amd64.syso'))
 Invoke-Checked -Tool go -Arguments @('-C',(Join-Path $root 'frontend'),'build','-trimpath','-ldflags','-s -w','-o',(Join-Path $release 'Pomme.exe'),'./cmd/pomme')
 Copy-Item -LiteralPath (Join-Path $root 'target\release\apple-native-engine.exe') -Destination $release
 & (Join-Path $PSScriptRoot 'Remove-NativeSourcePaths.ps1') -Path (Join-Path $release 'apple-native-engine.exe')

@@ -475,6 +475,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tickMsg:
 		if !m.sleepUntil.IsZero() && !time.Now().Before(m.sleepUntil) {
 			m.sleepUntil = time.Time{}
+   m.sleepChoice=0
 			m.note, m.noteAt = "Sleep timer finished", m.t
 			if m.eng != nil {
 				return m, tea.Batch(tick(), doCmd(m.eng.Pause))
@@ -735,6 +736,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m.reconnect("signed out — sign in to Apple Music")
 	case tea.MouseMsg:
+  if m.mini {return m,nil}
 		return m.updateMouse(msg)
 	case tea.KeyMsg:
 		// Any key dismisses help, and that key does nothing else — reading the
@@ -1497,7 +1499,8 @@ func (m model) transportPanel(w int) string {
 	// there may be no room for them. pad() truncates silently, which is how the
 	// old line lost its tail without anyone noticing; drop to the short form
 	// instead, and then to nothing, so whatever is shown is shown whole.
-	hints = fitHints(hints, w-lipgloss.Width(l1)-1)
+	if !m.sleepUntil.IsZero(){l1 += dim.Render(" | sleep "+time.Until(m.sleepUntil).Round(time.Second).String())}
+ hints = fitHints(hints, w-lipgloss.Width(l1)-1)
 	r1 := faint.Render(hints)
 	line1 := l1 + strings.Repeat(" ", max(1, w-lipgloss.Width(l1)-lipgloss.Width(r1))) + r1
 
