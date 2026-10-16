@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -67,6 +68,7 @@ var helpSections = []helpSection{
 		{"S twice", "save playlist"},
 		{"tab", "cycle focus"},
 		{"j k / ↑ ↓", "move selection"},
+		{"pgup/dn", "page selection"},
 		{"↵", "play selection"},
 		{"← →", "prev / next cover"},
 	}},
@@ -76,7 +78,8 @@ var helpSections = []helpSection{
 		{"a / A", "queue end / next"},
 		{"ctrl+p/n", "search history"},
 		{"ctrl+l", "library category"},
-		{"pgup/dn", "library page"},
+		{"pgup/dn", "page list"},
+		{"ctrl+b/f", "page back / next"},
 		{"esc", "close"},
 	}},
 	{"LOOK", []helpEntry{
@@ -172,9 +175,9 @@ func (m model) helpView() string {
 
 	iw := lipgloss.Width(body[0])
 	pageSize := max(1, m.h-6)
-	start := min(m.helpPage*pageSize, max(0, len(body)-pageSize))
+	start := min(m.helpPage, m.helpPageCount()-1) * pageSize
 	body = body[start:min(start+pageSize, len(body))]
-	content := strings.Join(body, "\n") + "\n\n" + pad(faint.Render(" PgUp/PgDn pages | other key closes"), iw)
+	content := strings.Join(body, "\n") + "\n\n" + pad(faint.Render(fmt.Sprintf(" %d/%d PgUp/Dn or Ctrl+B/F | other key closes", min(m.helpPage, m.helpPageCount()-1)+1, m.helpPageCount())), iw)
 	box := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).BorderForeground(accent).
 		Width(iw).Render(content)

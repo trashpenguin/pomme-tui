@@ -140,3 +140,5 @@ Customize combinations with Ctrl, Alt, and Shift plus a letter, digit, F1–F24,
 - **Logo:** original Pomme apple/terminal artwork in `assets/`, embedded in the Windows launcher.
 
 Session and search metadata are local JSON files under the Pomme profile. They are not encrypted. No account tokens are included in session history.
+
+Page navigation: PgUp/PgDn (or Ctrl+B/Ctrl+F) moves the queue and search/library selection by a screenful. At the end of a full library batch, paging loads the next batch. Help uses the same keys and displays the current page number. These keys apply only while Pomme is focused.

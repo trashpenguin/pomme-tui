@@ -44,18 +44,24 @@ func (m model) libraryCmd() tea.Cmd {
 func (m model) updateSearch(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	eng := m.eng
 	list := m.curList()
+	if direction := pageDirection(msg); direction != 0 {
+		if m.sBusy {
+			return m, nil
+		}
+		m.sInput = false
+		atBoundary := (direction < 0 && m.sSel == 0) || (direction > 0 && m.sSel >= len(list)-1)
+		if m.libraryPaged && atBoundary && ((direction < 0 && m.libraryOffset > 0) || (direction > 0 && len(list) == 50 && m.libraryOffset < 10000)) {
+			m.libraryOffset = max(0, m.libraryOffset+direction*50)
+			m.sBusy = true
+			return m, m.pagedLibraryCmd()
+		}
+		m.sSel = max(0, min(m.sSel+direction*m.searchRows(), len(list)-1))
+		return m, nil
+	}
 	switch msg.String() {
 	case "ctrl+l":
 		m.libraryCategory = (m.libraryCategory + 1) % 5
 		m.libraryOffset = 0
-		m.sBusy = true
-		return m, m.pagedLibraryCmd()
-	case "pgdown", "pgup":
-		if msg.String() == "pgdown" {
-			m.libraryOffset += 50
-		} else {
-			m.libraryOffset = max(0, m.libraryOffset-50)
-		}
 		m.sBusy = true
 		return m, m.pagedLibraryCmd()
 	case "ctrl+p", "ctrl+n":
@@ -183,7 +189,7 @@ func (m model) searchView() string {
 	}
 	tabLine := " " + strings.Join(tabs, faint.Render("  ·  "))
 
-	rows := min(12, m.h-12)
+	rows := m.searchRows()
 	list := m.curList()
 	var body []string
 	switch {
@@ -207,7 +213,7 @@ func (m model) searchView() string {
 			body = append(body, pad(line, iw))
 		}
 	}
-	hint := faint.Render(" ↵ play/search · ↑↓ list · a queue · A next · tab category · esc close")
+	hint := faint.Render(" ↵ play · PgUp/Dn or Ctrl+B/F page · tab category · esc close")
 	if m.note != "" {
 		hint = dim.Render(" " + m.note)
 	}

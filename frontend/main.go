@@ -108,6 +108,7 @@ type model struct {
 
 	libraryCategory int
 	libraryOffset   int
+	libraryPaged    bool
 	mini            bool
 	sleepUntil      time.Time
 	sleepChoice     int
@@ -696,6 +697,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.failAudioInitialization()
 		}
 	case searchMsg:
+		m.libraryPaged = msg.category != ""
 		if msg.category != "" {
 			m.sTab = map[string]int{"songs": 1, "favorites": 1, "albums": 2, "playlists": 3, "artists": 4}[msg.category]
 			m.note, m.noteAt = fmt.Sprintf("Library %s | page %d | Ctrl+L category | PgUp/PgDn", msg.category, msg.offset/50+1), m.t
@@ -744,11 +746,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Any key dismisses help, and that key does nothing else — reading the
 		// list should never fire the command you were looking up.
 		if m.helpOpen {
-			if msg.String() == "pgdown" || msg.String() == "right" {
-				m.helpPage = min(m.helpPage+1, 3)
+			if pageDirection(msg) > 0 || msg.String() == "right" {
+				m.helpPage = min(m.helpPage+1, m.helpPageCount()-1)
 				return m, nil
 			}
-			if msg.String() == "pgup" || msg.String() == "left" {
+			if pageDirection(msg) < 0 || msg.String() == "left" {
 				m.helpPage = max(0, m.helpPage-1)
 				return m, nil
 			}
@@ -816,6 +818,15 @@ func (m model) updateKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	}
 	eng := m.eng
+	if direction := pageDirection(msg); direction != 0 {
+		switch m.focus {
+		case focusQueue:
+			m.selIdx = max(0, min(m.selIdx+direction*max(1,m.layout().queueRows()), len(m.st.Queue)-1))
+		case focusRecent:
+			m.recentSel = max(0, min(m.recentSel+direction*recentCols*2, len(m.recent)-1))
+		}
+		return m,nil
+	}
 	switch msg.String() {
 	case "q", "ctrl+c":
 		m.closeVisualizerAsync()
