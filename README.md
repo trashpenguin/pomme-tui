@@ -88,7 +88,7 @@ To uninstall, remove the program directory and its entry from your user PATH. To
 
 ## Scope and limitations
 
-This is an early **0.1.0 Windows release**, tested on a development Windows PC. A clean Windows VM and GitHub-hosted CI have not yet been exercised. Search returns at most 50 items per category; the initial library view is capped at 100 albums, 100 playlists, and ten recent entries; queues are capped at 1,000 catalog songs. Locally uploaded songs without catalog encodes, offline downloads, lossless, and seamless gapless playback are not supported.
+This is an early **0.2.0 Windows prerelease**, tested on a development Windows PC. A clean Windows VM has not yet been exercised. Search returns at most 50 items per category. Press L for paged library browsing; the initial search overview remains limited. Queues are capped at 1,000 catalog songs. Locally uploaded songs without catalog encodes, offline downloads, lossless, and seamless gapless playback are not supported.
 
 Native playback still uses a separate Widevine helper. A prior full-interface snapshot measured roughly 236 MiB combined working set; this is a snapshot, not a memory guarantee. The Go soft limit does not cap total app memory. Subscription/authentication and Apple's service behavior may affect availability.
 

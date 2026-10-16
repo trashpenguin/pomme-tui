@@ -59,7 +59,16 @@ try {
     $info.EnvironmentVariables.Remove('SONORA_APPLE_BEARER_TOKEN')
     $process = New-Object System.Diagnostics.Process
     $process.StartInfo = $info
-    if (!$process.Start()) { throw 'Backend did not start.' }
+    # .NET Framework builds the stdin writer from Console.InputEncoding and
+    # flushes its preamble during Start, before any BaseStream writes. CI can
+    # use UTF-8 with a BOM; explicitly use BOM-free UTF-8 for process creation.
+    $previousInputEncoding = [Console]::InputEncoding
+    try {
+        [Console]::InputEncoding = New-Object System.Text.UTF8Encoding($false)
+        if (!$process.Start()) { throw 'Backend did not start.' }
+    } finally {
+        [Console]::InputEncoding = $previousInputEncoding
+    }
     try {
         # Windows PowerShell's .NET Framework lacks StandardInputEncoding.
         # Write UTF-8 bytes directly so neither runtime inserts a BOM.
