@@ -463,7 +463,7 @@ func (m model) fetchTileArtCmds() []tea.Cmd {
 }
 
 func (m model) Init() tea.Cmd {
-	return tea.Batch(tick(), connectCmd(m.statusCh, m.connections), listenStatus(m.statusCh))
+	return tea.Batch(tea.SetWindowTitle("Pomme"), tick(), connectCmd(m.statusCh, m.connections), listenStatus(m.statusCh))
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
