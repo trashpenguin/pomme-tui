@@ -46,3 +46,4 @@ $sums | Set-Content -LiteralPath (Join-Path $release 'SHA256SUMS.txt') -Encoding
 & (Join-Path $PSScriptRoot 'Test-Release.ps1') -ReleasePath $release
 Compress-Archive -LiteralPath $release -DestinationPath (Join-Path $dist "pomme-tui-$Version-windows-x64.zip")
 Write-Host "Windows release: $release"
+exit 0
