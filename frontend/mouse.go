@@ -96,7 +96,14 @@ func (m model) recentTileAt(x, panelW int) int {
 }
 
 func (m model) updateMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
-	if m.phase != phaseReady || m.helpOpen || m.acctOpen || m.searchOpen {
+	if m.phase != phaseReady || m.helpOpen || m.acctOpen {
+		return m, nil
+	}
+	if msg.Button == tea.MouseButtonLeft && msg.Action == tea.MouseActionPress && msg.Y < 3 {
+		m.searchOpen, m.sInput = true, true
+		return m, nil
+	}
+	if m.searchOpen {
 		return m, nil
 	}
 	lay := m.layout()

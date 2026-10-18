@@ -204,3 +204,12 @@ func TestLayoutMatchesTheRenderedFrame(t *testing.T) {
 		}
 	}
 }
+
+func TestClickSearchBarOpensFocusedSearch(t *testing.T) {
+	m := mouseModel(100, 34, 5)
+	next, cmd := m.updateMouse(tea.MouseMsg{X: 30, Y: 1, Button: tea.MouseButtonLeft, Action: tea.MouseActionPress})
+	got := next.(model)
+	if !got.searchOpen || !got.sInput || cmd != nil {
+		t.Fatalf("clicking search bar should open focused search: open=%v input=%v", got.searchOpen, got.sInput)
+	}
+}
