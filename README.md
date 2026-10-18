@@ -8,13 +8,23 @@ A Windows terminal player with native audio playback, search, a queue, synced ly
 
 ## Install and play
 
-1. Download and extract the Windows x64 release ZIP from this repository's Releases page. For a local build, find it under `dist/`.
+1. Download and extract the [Pomme TUI 0.2.5 Windows x64 prerelease](https://github.com/trashpenguin/pomme-tui/releases/tag/v0.2.5). For a local build, find it under `dist/`.
 2. Double-click **Pomme.exe** (or **Start Pomme.cmd**). If the current console is too small, Pomme opens a 140×45 Windows Terminal window so the lyrics cover is visible. On first launch, complete Apple Music sign-in in the temporary window.
 3. Press **/**, enter a song or artist, press **Enter** to search, then **Enter** to play.
 
 Requirements: Windows 10/11 x64, internet access, an Apple Music subscription, Google Chrome with its installed x64 Widevine module, Microsoft Visual C++ x64 Runtime, and WebView2 Evergreen Runtime for sign-in. Chrome does not run during playback. Widevine is loaded from your existing Chrome installation; Pomme does not include or download a CDM.
 
 If setup fails, run `pomme.cmd doctor` from the extracted folder. Install missing dependencies from their official sources: [Chrome](https://www.google.com/chrome/), [Microsoft Visual C++ x64 Runtime](https://aka.ms/vc14/vc_redist.x64.exe), [WebView2](https://developer.microsoft.com/microsoft-edge/webview2/).
+
+## What's new in 0.2.5
+
+- **Discovery:** browse Apple Music recommendations, open supported albums, playlists, artists and genres, then play or queue items.
+- **Listening stats:** view play counts and listening time by date range. Stats are collected locally by Pomme starting with this version; older Apple Music listening history is not imported.
+- **Queue manager:** play, reorder and remove queued tracks, or clear the queue.
+- **Library:** browse songs, albums, playlists, artists and favorites in dedicated pages. Recently played is shown in its own panel.
+- **Security:** the bundled Rustls dependency is updated to a patched version.
+
+The Windows ZIP, matching source ZIP and SHA-256 checksums are attached to the [v0.2.5 release](https://github.com/trashpenguin/pomme-tui/releases/tag/v0.2.5).
 
 ### Use the `pomme` command anywhere
 
@@ -62,13 +72,27 @@ For a persistent preference, set the user environment variable `POMME_OUTPUT` to
 | Tab | Move focus or search category |
 | Enter | Play selected result or queue entry |
 | a / A in search | Append / play next |
+| L | Open the selected Library page |
+| Enter in Discovery | Open a recommendation |
+| e in Discovery | Play the selected recommendation |
+| a / A in Discovery or Library | Queue selected / play next |
+| w, then y / Enter in Discovery | Confirm saving selected item to library |
+| q in Discovery / queue page | Open the queue manager |
+| Delete / Ctrl+Up / Ctrl+Down in queue | Remove / move selected track |
+| Ctrl+Delete in queue | Clear the queue |
+| Enter in Library | Open the selected category or item |
+| Tab in Library | Cycle library categories |
+| ← / → in Stats; r | Change date range / refresh stats |
+| Ctrl+P / Ctrl+N in search | Previous / next search in history |
+| PgUp / PgDn | Page through lists and help |
 | Left / right in player | Seek five seconds |
 | Up / down in player | Volume |
 | s / r | Shuffle / cycle repeat |
 | v / t | Visualizer / theme |
-| a outside search | Account; Enter in account signs out |
+| m / T | Mini player / sleep timer |
+| ? | Full context-sensitive key help |
+| a outside search | Account menu; Enter in account signs out |
 | R | Recover the audio engine |
-| ? | Full keyboard help |
 | q / Ctrl+C | Quit |
 
 Lyrics use LRCLIB and can be missing or inaccurate. Missing lyrics/artwork do not prevent playback. Optional Last.fm support is inherited from the frontend and is off unless configured. Run `pomme lastfm-auth` to configure its authentication in the Pomme profile.
@@ -106,22 +130,9 @@ The build runs Go tests/vet, Rust library tests, and launcher checks, uses the l
 
 The interface is a modified [applemusic-tui](https://github.com/k1y0miiii/applemusic-tui) (amtui), MIT licensed. The native playback uses modified [Sonora](https://github.com/sonorahq/sonora), GPL-3.0-or-later. The backend and combined distribution use GPL-3.0-or-later; the frontend retains its MIT license. See [NOTICE.md](NOTICE.md), [LICENSE](LICENSE), and [THIRD-PARTY.md](THIRD-PARTY.md). Release binaries must be accompanied by their matching source archive. Widevine is not redistributed.
 
-## Changes in 0.1.2
+## Earlier changes
 
-- Steady progress bar by default, clamped progress values, and plain-text playback symbols for predictable terminal spacing.
-- Six visualizers: bars, torus, sphere, wave, mirror, and waterfall. Press `v` to cycle.
-- `Pomme.exe` launcher; opening `pomme-ui.exe` directly also runs dependency setup when needed.
-
-Local UI tests, package checks, direct-launch setup, and authenticated backend catalog checks passed. Clean-machine playback remains unverified; this is an unsigned prerelease.
-
-## New in 0.2.5
-
-- **Discovery:** browse Apple Music recommendations in a dedicated page, open albums, playlists, artists and genres, and queue supported recommendations.
-- **Stats:** select Last 7 Days, Last 30 Days, This Month, This Year or All Time. Pomme records plays and listening time locally from this version onward; the history is stored with Pomme's settings.
-- **Queue controls:** review, play, reorder and remove queued tracks from the queue manager; discovery offers a confirmation before saving supported items to the library.
-- **Library navigation:** open category pages directly, page through large lists, and use Tab to change categories. Ctrl+L no longer changes library categories.
-
-## New in 0.2.0
+### 0.2.0
 
 - **Session restore:** queue, selected track, position, volume, shuffle and repeat are saved every 15 seconds and on normal exit. Reopening restores paused. Signing out clears the saved queue.
 - **Library:** choose a category in the Library panel and press `Enter`; `L` opens the selected item's dedicated page. Press `Tab` on a library page to cycle songs, albums, playlists, artists and favorites. `PgUp`/`PgDn` fetch 50-item pages. Select an artist to browse their tracks and albums. Apple library permissions and availability still apply.
@@ -149,3 +160,11 @@ Customize combinations with Ctrl, Alt, and Shift plus a letter, digit, F1–F24,
 Session and search metadata are local JSON files under the Pomme profile. They are not encrypted. No account tokens are included in session history.
 
 Page navigation: PgUp/PgDn (or Ctrl+B/Ctrl+F) moves the queue and search/library selection by a screenful. At the end of a full library batch, paging loads the next batch. Help uses the same keys and displays the current page number. These keys apply only while Pomme is focused.
+
+### 0.1.2
+
+- Steady progress bar by default, clamped progress values, and plain-text playback symbols for predictable terminal spacing.
+- Six visualizers: bars, torus, sphere, wave, mirror, and waterfall. Press `v` to cycle.
+- `Pomme.exe` launcher; opening `pomme-ui.exe` directly also runs dependency setup when needed.
+
+Local UI tests, package checks, direct-launch setup, and authenticated backend catalog checks passed. Clean-machine playback remains unverified; this is an unsigned prerelease.
