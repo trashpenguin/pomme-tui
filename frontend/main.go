@@ -1601,13 +1601,24 @@ func (m model) View() string {
 	if m.searchOpen {
 		return m.searchView()
 	}
+	searchBar := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(borderDim).
+		Width(m.w-2).Render(lipgloss.NewStyle().Foreground(fgFaint).Render(" Search  ") +
+			lipgloss.NewStyle().Foreground(fgBright).Render(m.sQuery) +
+			lipgloss.NewStyle().Foreground(fgFaint).Render("   press / to search"))
 	lay := m.layout()
 
 	left := panel("pomme · "+m.queueTitle(), m.queuePanel(lay.qw, lay.qh), lay.qw, lay.qh,
 		m.focus == focusQueue, m.pulsedAccent())
 	if lay.recH > 0 {
+		library := []string{"Discovery", "Songs", "Albums", "Playlists", "Artists", "Favorites"}
+		var items []string
+		for i, name := range library {
+			mark := "  "
+			if i == m.libraryCategory+1 { mark = "› " }
+			items = append(items, mark+name)
+		}
 		left = lipgloss.JoinVertical(lipgloss.Left, left,
-			panel(m.recentTitle(), m.recentPanel(lay.qw, lay.recH-2), lay.qw, lay.recH-2,
+			panel("LIBRARY · L / Ctrl+L", strings.Join(items[:min(len(items), max(1, lay.recH-3))], "\n"), lay.qw, lay.recH-2,
 				m.focus == focusRecent, m.pulsedAccent()))
 	}
 	viz := panel(m.visualizerTitle(), m.vizPanel(lay.vw, lay.vh-2), lay.vw, lay.vh-2,
@@ -1622,7 +1633,7 @@ func (m model) View() string {
 		BorderForeground(map[bool]lipgloss.Color{true: m.pulsedAccent(), false: borderDim}[m.focus == focusPlayer]).
 		Width(tw).Render(m.transportPanel(tw))
 
-	return lipgloss.JoinVertical(lipgloss.Left, top, transport)
+	return lipgloss.JoinVertical(lipgloss.Left, searchBar, top, transport)
 }
 
 // version is stamped at build time with -ldflags "-X main.version=...".

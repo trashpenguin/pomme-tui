@@ -25,7 +25,7 @@ type layout struct {
 }
 
 func (m model) layout() layout {
-	l := layout{topH: m.h - 4}
+	l := layout{topH: m.h - 7}
 	l.leftW = m.w * 42 / 100
 	l.rightW = m.w - l.leftW
 	l.qw = l.leftW - 2
@@ -43,7 +43,7 @@ func (m model) layout() layout {
 // screen row the first of them is drawn on. panel() spends one row on the
 // border and one on its title before the body starts.
 func (l layout) queueRows() int { return l.qh - 1 }
-func (l layout) queueTop() int  { return 2 }
+func (l layout) queueTop() int  { return 5 }
 
 // recentTop is the screen row the cover grid starts on, directly below the
 // queue box.
