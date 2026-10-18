@@ -40,7 +40,7 @@ func TestHelpShowsEveryEntryWhole(t *testing.T) {
 	lipgloss.SetColorProfile(termenv.Ascii)
 
 	out := ""
-	for page := 0; page < 4; page++ {
+	for page := 0; page < (model{w: minCols, h: minRows}).helpPageCount(); page++ {
 		out += model{w: minCols, h: minRows, helpPage: page}.helpView()
 	}
 	for _, section := range helpSections {
@@ -55,6 +55,16 @@ func TestHelpShowsEveryEntryWhole(t *testing.T) {
 	}
 }
 
+func TestHelpNoLongerAdvertisesCtrlL(t *testing.T) {
+	for _, section := range helpSections {
+		for _, entry := range section.entries {
+			if strings.Contains(strings.ToLower(entry.keys), "ctrl+l") || strings.Contains(strings.ToLower(entry.action), "ctrl+l") {
+				t.Fatalf("help still advertises Ctrl+L in %q: %+v", section.title, entry)
+			}
+		}
+	}
+}
+
 func TestTransportHintsAreNeverCutInHalf(t *testing.T) {
 	// This is the defect the overlay exists for, and measuring the row width
 	// will not find it: transportPanel pads every row to the panel, so an
@@ -64,7 +74,7 @@ func TestTransportHintsAreNeverCutInHalf(t *testing.T) {
 	lipgloss.SetColorProfile(termenv.Ascii)
 
 	for _, w := range []int{minCols - 2, 100, 160} {
-		for _, focus := range []int{focusQueue, focusRecent, focusPlayer} {
+		for _, focus := range []int{focusQueue, focusLibrary, focusRecent, focusPlayer} {
 			out := model{w: w + 2, h: minRows, focus: focus}.transportPanel(w)
 			full := strings.TrimSpace(transportHints(focus))
 			switch {

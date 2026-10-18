@@ -9,7 +9,7 @@ A Windows terminal player with native audio playback, search, a queue, synced ly
 ## Install and play
 
 1. Download and extract the Windows x64 release ZIP from this repository's Releases page. For a local build, find it under `dist/`.
-2. Double-click **Pomme.exe** (or **Start Pomme.cmd**). On first launch, complete Apple Music sign-in in the temporary window.
+2. Double-click **Pomme.exe** (or **Start Pomme.cmd**). If the current console is too small, Pomme opens a 140×45 Windows Terminal window so the lyrics cover is visible. On first launch, complete Apple Music sign-in in the temporary window.
 3. Press **/**, enter a song or artist, press **Enter** to search, then **Enter** to play.
 
 Requirements: Windows 10/11 x64, internet access, an Apple Music subscription, Google Chrome with its installed x64 Widevine module, Microsoft Visual C++ x64 Runtime, and WebView2 Evergreen Runtime for sign-in. Chrome does not run during playback. Widevine is loaded from your existing Chrome installation; Pomme does not include or download a CDM.
@@ -88,7 +88,7 @@ To uninstall, remove the program directory and its entry from your user PATH. To
 
 ## Scope and limitations
 
-This is an early **0.2.0 Windows prerelease**, tested on a development Windows PC. A clean Windows VM has not yet been exercised. Search returns at most 50 items per category. Press L for paged library browsing; the initial search overview remains limited. Queues are capped at 1,000 catalog songs. Locally uploaded songs without catalog encodes, offline downloads, lossless, and seamless gapless playback are not supported.
+This is the **0.2.5 Windows prerelease**. Automated UI, backend, installer and release-package checks pass; a clean Windows VM and clean-machine playback have not been verified. Search returns at most 50 items per category. The initial search overview remains limited. Queues are capped at 1,000 catalog songs. Locally uploaded songs without catalog encodes, offline downloads, lossless, and seamless gapless playback are not supported.
 
 Native playback still uses a separate Widevine helper. A prior full-interface snapshot measured roughly 236 MiB combined working set; this is a snapshot, not a memory guarantee. The Go soft limit does not cap total app memory. Subscription/authentication and Apple's service behavior may affect availability.
 
@@ -100,7 +100,7 @@ Install Go 1.26, Rust 1.98.1, and Visual Studio 2022 Build Tools with Desktop de
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\Build.ps1
 ```
 
-The build runs Go tests/vet, Rust library tests, and launcher checks, uses the locked dependencies, and creates `dist/pomme-tui-0.1.0-windows-x64.zip`. Do not commit `dist/`, `target/`, credentials, or local profiles. See [CONTRIBUTING.md](CONTRIBUTING.md) and [RELEASE-CHECKLIST.md](RELEASE-CHECKLIST.md).
+The build runs Go tests/vet, Rust library tests, and launcher checks, uses the locked dependencies, and creates `dist/pomme-tui-0.2.5-windows-x64.zip`. Do not commit `dist/`, `target/`, credentials, or local profiles. See [CONTRIBUTING.md](CONTRIBUTING.md) and [RELEASE-CHECKLIST.md](RELEASE-CHECKLIST.md).
 
 ## Credits and licenses
 
@@ -114,10 +114,17 @@ The interface is a modified [applemusic-tui](https://github.com/k1y0miiii/applem
 
 Local UI tests, package checks, direct-launch setup, and authenticated backend catalog checks passed. Clean-machine playback remains unverified; this is an unsigned prerelease.
 
+## New in 0.2.5
+
+- **Discovery:** browse Apple Music recommendations in a dedicated page, open albums, playlists, artists and genres, and queue supported recommendations.
+- **Stats:** select Last 7 Days, Last 30 Days, This Month, This Year or All Time. Pomme records plays and listening time locally from this version onward; the history is stored with Pomme's settings.
+- **Queue controls:** review, play, reorder and remove queued tracks from the queue manager; discovery offers a confirmation before saving supported items to the library.
+- **Library navigation:** open category pages directly, page through large lists, and use Tab to change categories. Ctrl+L no longer changes library categories.
+
 ## New in 0.2.0
 
 - **Session restore:** queue, selected track, position, volume, shuffle and repeat are saved every 15 seconds and on normal exit. Reopening restores paused. Signing out clears the saved queue.
-- **Library:** press `L`, then `Ctrl+L` to cycle songs, albums, playlists, artists and favorites. `PgUp`/`PgDn` fetch 50-item pages. Select an artist to browse their tracks and albums. Apple library permissions and availability still apply.
+- **Library:** choose a category in the Library panel and press `Enter`; `L` opens the selected item's dedicated page. Press `Tab` on a library page to cycle songs, albums, playlists, artists and favorites. `PgUp`/`PgDn` fetch 50-item pages. Select an artist to browse their tracks and albums. Apple library permissions and availability still apply.
 - **Queue:** `Delete` removes the selected track, `Ctrl+Up/Down` moves it, and `Ctrl+Delete` clears the queue. Press `S` twice within five seconds to save a dated playlist to Apple Music. A failed or interrupted save may leave a partial playlist; check your library before retrying.
 - **Media keys:** Uses Windows System Media Transport Controls for play/pause, next and previous while Pomme is in the background, with current track metadata. Windows selects the active media session; start playback in Pomme before testing keyboard controls.
 - **Optional global shortcuts:** Disabled by default. After the player starts, edit `%LOCALAPPDATA%\PommeTUI\settings\hotkeys.json` (or `settings\hotkeys.json` under your custom `POMME_DATA_DIR`) and restart Pomme. Set `enabled` to `true` to enable the combinations below, or `false` to release them on the next restart. While disabled, Pomme registers no global keyboard combinations.

@@ -1,10 +1,12 @@
 mod catalog;
-mod media_keys;
 mod controller;
+mod media_keys;
 mod signin;
 use anyhow::{Context, Result, bail};
 use apple_native_engine::auth_failure::is_auth_error;
-use apple_native_engine::protocol::{self, Request, Response, SearchResults, WireTrack};
+use apple_native_engine::protocol::{
+    self, DiscoveryFeed, Request, Response, SearchResults, WireTrack,
+};
 use controller::Controller;
 use music::{MusicProvider, SignIn};
 use serde_json::{Value, json};
@@ -23,6 +25,9 @@ enum Input {
 enum Data {
     Results(SearchResults),
     Tracks(Vec<WireTrack>),
+    Discovery(DiscoveryFeed),
+    TrackList(Vec<WireTrack>),
+    Action,
 }
 struct Completed {
     id: u64,
@@ -153,9 +158,9 @@ async fn main() -> Result<()> {
             }
         }
     });
-    let (media_tx,mut media_rx)=tokio::sync::mpsc::unbounded_channel();
-    let mut media:Option<media_keys::Bridge>=None;
-    let mut media_tick=tokio::time::interval(Duration::from_millis(500));
+    let (media_tx, mut media_rx) = tokio::sync::mpsc::unbounded_channel();
+    let mut media: Option<media_keys::Bridge> = None;
+    let mut media_tick = tokio::time::interval(Duration::from_millis(500));
     let mut session = None;
     let mut control: Option<Controller> = None;
     let mut catalog = None;
@@ -166,7 +171,7 @@ async fn main() -> Result<()> {
     let mut queued = BTreeMap::new();
     let mut queue_sequence = 0;
     let mut next_queue = 1;
-    let mut save_tick=tokio::time::interval(Duration::from_secs(15));
+    let mut save_tick = tokio::time::interval(Duration::from_secs(15));
     loop {
         if control.as_ref().is_some_and(|ctrl| !ctrl.authed) {
             jobs.abort_all();
@@ -219,7 +224,7 @@ async fn main() -> Result<()> {
                 }
                 let Some(ctrl)=control.as_mut() else{write_response(Response::error(id,"Apple Music sign-in required"))?;continue;};
                 if !ctrl.authed && method!="state" {write_response(Response::error(id,"Apple Music authentication expired; sign in again"))?;continue;}
-                if ["search","library","library_page","artist_page","save_playlist","play","queue_next","queue_later"].contains(&method){
+                if ["search","library","library_page","artist_page","discovery","discovery_item","save_item","save_playlist","play","queue_next","queue_later"].contains(&method){
                     if jobs.len()>=8{write_response(Response::error(id,"too many catalog requests; try again"))?;continue;}
                     if method=="play"{ctrl.generation=ctrl.generation.wrapping_add(1);}
                     let generation=ctrl.generation;let cat=catalog.as_ref().unwrap().clone();
@@ -233,6 +238,9 @@ async fn main() -> Result<()> {
                                 "search"=>cat.search(string(&request.params,"query")?).await.map(Data::Results),
                                 "library_page"=>cat.library_page(string(&request.params,"category")?,number(&request.params,"offset")? as usize).await.map(Data::Results),
                                 "artist_page"=>cat.artist_page(string(&request.params,"id")?).await.map(Data::Results),
+                                "discovery"=>cat.discovery().await.map(Data::Discovery),
+                                "discovery_item"=>cat.discovery_tracks(string(&request.params,"kind")?,string(&request.params,"id")?).await.map(Data::TrackList),
+                                "save_item"=>cat.save_to_library(string(&request.params,"kind")?,string(&request.params,"id")?).await.map(|_|Data::Action),
                                 "library"=>cat.library().await.map(Data::Results),
                                 _=>cat.resolve(string(&request.params,"kind")?,string(&request.params,"id")?).await.map(Data::Tracks),
                             }
@@ -288,7 +296,9 @@ async fn main() -> Result<()> {
         }
     }
     jobs.abort_all();
-    if let Some(ctrl)=control.as_ref(){let _=ctrl.save_session();}
+    if let Some(ctrl) = control.as_ref() {
+        let _ = ctrl.save_session();
+    }
     drop(control);
     Ok(())
 }
@@ -331,6 +341,9 @@ fn finish(completed: Completed, control: &mut Controller) -> Result<()> {
                 Err(error) => Response::error(completed.id, error.to_string()),
             }
         }
+        Ok(Data::Discovery(feed)) => Response::ok(completed.id, feed),
+        Ok(Data::TrackList(tracks)) => Response::ok(completed.id, tracks),
+        Ok(Data::Action) => Response::ok(completed.id, true),
         Err(error) => {
             if is_auth_error(&error) {
                 control.invalidate_auth();

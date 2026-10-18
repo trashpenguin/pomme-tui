@@ -1,6 +1,5 @@
 use std::{sync::mpsc, time::Duration};
 use windows::{
-    core::{w, HSTRING},
     Foundation::TypedEventHandler,
     Media::{
         MediaPlaybackStatus, MediaPlaybackType, SystemMediaTransportControls,
@@ -9,14 +8,15 @@ use windows::{
     },
     Win32::{
         System::WinRT::{
-            ISystemMediaTransportControlsInterop, RoGetActivationFactory, RoInitialize,
-            RoUninitialize, RO_INIT_MULTITHREADED,
+            ISystemMediaTransportControlsInterop, RO_INIT_MULTITHREADED, RoGetActivationFactory,
+            RoInitialize, RoUninitialize,
         },
         UI::WindowsAndMessaging::{
-            CreateWindowExW, DestroyWindow, DispatchMessageW, PeekMessageW, TranslateMessage, MSG,
-            PM_REMOVE, WINDOW_EX_STYLE, WS_OVERLAPPED,
+            CreateWindowExW, DestroyWindow, DispatchMessageW, MSG, PM_REMOVE, PeekMessageW,
+            TranslateMessage, WINDOW_EX_STYLE, WS_OVERLAPPED,
         },
     },
+    core::{HSTRING, w},
 };
 
 #[derive(Clone, Copy)]

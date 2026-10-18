@@ -19,6 +19,7 @@ type layout struct {
 	leftW  int // full width of the queue column, borders included
 	rightW int
 	qw, qh int // queue panel content size
+	libH   int // full height of the library box, 0 when hidden
 	recH   int // full height of the recently-played box, 0 when hidden
 	vw, vh int // visualizer panel
 	lh     int // lyrics panel content height
@@ -29,10 +30,19 @@ func (m model) layout() layout {
 	l.leftW = m.w * 42 / 100
 	l.rightW = m.w - l.leftW
 	l.qw = l.leftW - 2
-	if len(m.recent) > 0 {
-		l.recH = recentPanelHeight(l.topH)
+	if l.topH >= 15 {
+		l.libH = 10 // seven library rows plus the panel title and borders
 	}
-	l.qh = l.topH - 2 - l.recH
+	if l.topH >= 24 {
+		l.recH = 9 // larger square covers, with two recent tracks visible
+	}
+	if l.topH-2-l.libH-l.recH < 4 {
+		l.recH = 0 // keep a useful queue visible on shorter terminals
+	}
+	if l.topH-2-l.libH < 3 {
+		l.libH = 0
+	}
+	l.qh = l.topH - 2 - l.libH - l.recH
 	l.vh = l.topH * 62 / 100
 	l.vw = l.rightW - 2
 	l.lh = l.topH - l.vh - 2
@@ -45,9 +55,9 @@ func (m model) layout() layout {
 func (l layout) queueRows() int { return l.qh - 1 }
 func (l layout) queueTop() int  { return 5 }
 
-// recentTop is the screen row the cover grid starts on, directly below the
-// queue box.
-func (l layout) recentTop() int { return l.qh + 2 + 2 + 3 }
+// libraryTop and recentTop are the first body rows below each panel title.
+func (l layout) libraryTop() int { return l.qh + 2 + 2 + 3 }
+func (l layout) recentTop() int  { return l.qh + l.libH + 2 + 2 + 3 }
 
 // progressGeometry returns the column the progress bar starts at within the
 // transport's content, and its width. transportPanel lays the second line out
@@ -66,35 +76,6 @@ func (m model) progressGeometry(w int) (x, width int) {
 	return 6 + lipgloss.Width(times), barW
 }
 
-// recentTileAt maps a column in the cover grid to an entry, mirroring the tile
-// sizing in recentPanel. Returns -1 when the click missed a tile, landing in a
-// gap or past the last cover.
-func (m model) recentTileAt(x, panelW int) int {
-	const minGap = 2
-	rows := m.layout().recH - 3 // panel body height
-	artRows := rows - 2
-	artCols := artRows * 2
-	if maxCols := (panelW - (recentCols+1)*minGap) / recentCols; artCols > maxCols {
-		artCols = maxCols - maxCols%2
-		artRows = artCols / 2
-	}
-	if artCols < 6 || artRows < 2 {
-		return -1
-	}
-	gap := (panelW - recentCols*artCols) / (recentCols + 1)
-	start := m.recentSel / recentCols * recentCols
-	for c := 0; c < recentCols; c++ {
-		left := gap*(c+1) + artCols*c
-		if x >= left && x < left+artCols {
-			if i := start + c; i < len(m.recent) {
-				return i
-			}
-			return -1
-		}
-	}
-	return -1
-}
-
 func (m model) updateMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	if m.phase != phaseReady || m.helpOpen || m.acctOpen {
 		return m, nil
@@ -103,13 +84,16 @@ func (m model) updateMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		m.searchOpen, m.sInput = true, true
 		return m, nil
 	}
-	if m.searchOpen {
+	if m.searchOpen || m.libraryOpen || m.discoveryOpen || m.statsOpen {
 		return m, nil
 	}
 	lay := m.layout()
 	inQueue := msg.X < lay.leftW && msg.Y >= lay.queueTop() &&
 		msg.Y < lay.queueTop()+lay.queueRows()
-	recentPanelTop := lay.queueTop() + lay.qh
+	libraryPanelTop := lay.queueTop() + lay.qh
+	inLibrary := lay.libH > 0 && msg.X < lay.leftW &&
+		msg.Y >= libraryPanelTop && msg.Y < libraryPanelTop+lay.libH
+	recentPanelTop := libraryPanelTop + lay.libH
 	inRecent := lay.recH > 0 && msg.X < lay.leftW &&
 		msg.Y >= recentPanelTop && msg.Y < recentPanelTop+lay.recH
 
@@ -126,9 +110,13 @@ func (m model) updateMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		case inQueue:
 			m.focus = focusQueue
 			m.selIdx = max(0, min(m.selIdx+step, len(m.st.Queue)-1))
+		case inLibrary:
+			m.focus = focusLibrary
+			m.librarySelection = max(0, min(m.librarySelection+step, 6))
 		case inRecent:
 			m.focus = focusRecent
-			m.librarySelection = max(0, min(m.librarySelection+step, 5))
+			m.recentSel = max(0, min(m.recentSel+step, len(m.recent)-1))
+			return m.requestRecentArtwork()
 		}
 		return m, nil
 
@@ -136,12 +124,12 @@ func (m model) updateMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		if msg.Action != tea.MouseActionPress {
 			return m, nil
 		}
-		return m.click(msg, lay, inQueue, inRecent)
+		return m.click(msg, lay, inQueue, inLibrary, inRecent)
 	}
 	return m, nil
 }
 
-func (m model) click(msg tea.MouseMsg, lay layout, inQueue, inRecent bool) (tea.Model, tea.Cmd) {
+func (m model) click(msg tea.MouseMsg, lay layout, inQueue, inLibrary, inRecent bool) (tea.Model, tea.Cmd) {
 	eng := m.eng
 	switch {
 	case inQueue && len(m.st.Queue) > 0:
@@ -162,18 +150,40 @@ func (m model) click(msg tea.MouseMsg, lay layout, inQueue, inRecent bool) (tea.
 		m.loadSnap, m.loadStart, m.loadHideQueue = snap(m.st), m.t, false
 		return m, doCmd(func() error { return eng.JumpTo(i) })
 
-	case inRecent:
-		// The library's selectable rows begin below its border and title.
-		// Ignore clicks on those two decorative rows.
-		i := msg.Y - lay.recentTop()
-		if i < 0 || i >= 6 {
+	case inLibrary:
+		// Ignore clicks on the border and title; category rows begin below them.
+		i := msg.Y - lay.libraryTop()
+		if i < 0 || i >= 7 {
 			return m, nil
 		}
-		m.focus, m.librarySelection = focusRecent, i
-		m.libraryCategory = max(0, min(i-1, 4)) // Discovery opens Songs.
-		m.libraryOffset = 0
-		m.searchOpen, m.sInput, m.sBusy = true, false, true
-		return m, m.pagedLibraryCmd()
+		m.focus, m.librarySelection = focusLibrary, i
+		return m.openLibrarySelection(i)
+
+	case inRecent && len(m.recent) > 0:
+		// Recently played rows begin below their border and title.
+		row := msg.Y - lay.recentTop()
+		if row < 0 {
+			return m, nil
+		}
+		start, count := m.recentWindow(lay.recH - 3)
+		card := row / recentCardRows
+		if card >= count {
+			return m, nil
+		}
+		i := start + card
+		m.focus, m.recentSel = focusRecent, i
+		if m.audioInitializing() {
+			m.note, m.noteAt = audioInitializingText, m.t
+			return m, nil
+		}
+		tr := m.recent[i]
+		m.loading, m.loadSnap, m.loadStart = tr.Title, snap(m.st), m.t
+		m.loadHideQueue = true
+		m.beginAudioInitialization()
+		kind, id := tr.Kind, tr.ID
+		play := doCmd(func() error { return eng.Play(kind, id) })
+		m, art := m.requestRecentArtwork()
+		return m, tea.Batch(play, art)
 
 	case msg.Y == m.h-2 && m.st.Dur > 0:
 		// The transport's second line. Seeking is the one thing a pointer does

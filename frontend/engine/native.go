@@ -129,16 +129,20 @@ func (e *Engine) Close() {
 	})
 }
 func (e *Engine) call(method string, params any, out any) error {
-	timeout := 5 * time.Second
-	if method == "search" || method == "library" || method == "save_playlist" || method == "library_page" || method == "artist_page" || method == "play" || method == "queue_next" || method == "queue_later" {
-		timeout = 35 * time.Second
-	}
-	if method == "save_playlist" {
-		timeout = 310 * time.Second
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	ctx, cancel := context.WithTimeout(context.Background(), methodTimeout(method))
 	defer cancel()
 	return e.rpc.call(ctx, method, params, out)
+}
+
+func methodTimeout(method string) time.Duration {
+	switch method {
+	case "save_playlist":
+		return 310 * time.Second
+	case "search", "library", "library_page", "artist_page", "play", "queue_next", "queue_later", "save_item":
+		return 35 * time.Second
+	default:
+		return 5 * time.Second
+	}
 }
 func (e *Engine) State() (State, error) {
 	var raw struct {
@@ -222,6 +226,22 @@ func (e *Engine) LibraryPage(category string, offset int) (SearchResults, error)
 }
 func (e *Engine) ArtistPage(id string) (SearchResults, error) {
 	return e.results("artist_page", map[string]any{"id": id})
+}
+
+func (e *Engine) Discovery() (Discovery, error) {
+	var feed Discovery
+	err := e.call("discovery", nil, &feed)
+	return feed, err
+}
+
+func (e *Engine) DiscoveryTracks(kind, id string) ([]Track, error) {
+	var raw []wireTrack
+	err := e.call("discovery_item", map[string]any{"kind": kind, "id": id}, &raw)
+	return tracks(raw), err
+}
+
+func (e *Engine) SaveToLibrary(kind, id string) error {
+	return e.call("save_item", map[string]any{"kind": kind, "id": id}, nil)
 }
 
 func (e *Engine) SavePlaylist(name string) error {

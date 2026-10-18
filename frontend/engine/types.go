@@ -20,6 +20,13 @@ type State struct {
 	Err                           string
 }
 type SearchResults struct{ Songs, Albums, Playlists, Recent, Artists []Track }
+type DiscoverySection struct {
+	Title string  `json:"title"`
+	Items []Track `json:"items"`
+}
+type Discovery struct {
+	Sections []DiscoverySection `json:"sections"`
+}
 type Account struct {
 	Name       string `json:"name"`
 	Handle     string `json:"handle"`

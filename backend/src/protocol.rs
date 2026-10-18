@@ -33,6 +33,9 @@ pub fn decode(bytes: &[u8]) -> anyhow::Result<Request> {
             "save_playlist",
             "library_page",
             "artist_page",
+            "discovery",
+            "discovery_item",
+            "save_item",
             "state",
             "spectrum",
             "search",
@@ -88,6 +91,19 @@ pub struct SearchResults {
     pub err: String,
 }
 
+#[derive(Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DiscoveryFeed {
+    pub sections: Vec<DiscoverySection>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DiscoverySection {
+    pub title: String,
+    pub items: Vec<WireTrack>,
+}
+
 /// Responses carry one result or a safe error and always retain the caller's ID.
 #[derive(Serialize)]
 pub struct Response {
@@ -123,6 +139,10 @@ mod tests {
         let r = decode(br#"{"id":7,"method":"state","params":{}}"#).unwrap();
         assert_eq!(r.id, 7);
         assert_eq!(r.method, "state");
+        for method in ["discovery", "discovery_item", "save_item"] {
+            let request = format!(r#"{{"id":8,"method":"{method}","params":{{}}}}"#);
+            assert_eq!(decode(request.as_bytes()).unwrap().method, method);
+        }
     }
     #[test]
     fn protocol_rejects_malformed_oversized_and_unknown_requests() {

@@ -53,7 +53,7 @@ func TestLayoutFits(t *testing.T) {
 						searchOpen: searchOpen,
 						sQuery:     "daft punk",
 						recent:     recent,
-						focus:      focusRecent,
+						focus:      focusLibrary,
 						recentSel:  3,
 						vizOpening: visualizer.opening,
 						vizLive:    visualizer.live,

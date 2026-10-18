@@ -1,3 +1,3 @@
 @echo off
-call "%~dp0pomme.cmd"
+call "%~dp0Pomme.exe"
 if errorlevel 1 pause

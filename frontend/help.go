@@ -23,8 +23,10 @@ const shortHints = "? keys "
 // transportHints is the one-line reminder in the corner of the transport bar.
 func transportHints(focus int) string {
 	switch focus {
+	case focusLibrary:
+		return "↑↓ choose · ↵ open · L selected page · ? keys "
 	case focusRecent:
-		return "←→ covers · ↑↓ rows · ↵ play · / search · ? keys "
+		return "↑↓ recent tracks · ↵ play · / search · ? keys "
 	case focusPlayer:
 		return "←→ seek · ↑↓ volume · n/p track · v viz · t theme · ? keys "
 	}
@@ -53,34 +55,59 @@ type helpSection struct {
 var helpSections = []helpSection{
 	{"PLAYBACK", []helpEntry{
 		{"space", "play / pause"},
-		{"n / p", "next / prev track"},
-		{"← →", "seek −5 s / +5 s"},
+		{"n / p", "next / previous"},
+		{"← →", "seek −5 / +5 sec"},
 		{"↑ ↓", "volume down / up"},
-		{"s", "shuffle on / off"},
+		{"s", "shuffle toggle"},
 		{"r", "cycle repeat"},
 	}},
 	{"BROWSING", []helpEntry{
 		{"/", "search"},
-		{"L", "library pages"},
+		{"L", "Library page"},
+		{"tab", "cycle focus"},
 		{"del", "remove track"},
 		{"ctrl+up/dn", "reorder queue"},
 		{"ctrl+del", "clear queue"},
 		{"S twice", "save playlist"},
-		{"tab", "cycle focus"},
 		{"j k / ↑ ↓", "move selection"},
 		{"pgup/dn", "page selection"},
-		{"↵", "play selection"},
-		{"← →", "prev / next cover"},
+		{"↵", "open / play"},
+	}},
+	{"LIBRARY PAGE", []helpEntry{
+		{"↑ / ↓", "move selection"},
+		{"enter", "play / open"},
+		{"a / A", "queue / play next"},
+		{"pgup/dn", "page list"},
+		{"tab", "next category"},
+		{"/", "catalog search"},
+		{"esc", "back"},
+	}},
+	{"STATS", []helpEntry{
+		{"← / →", "change time range"},
+		{"r", "refresh stats"},
+		{"esc", "back"},
 	}},
 	{"IN SEARCH", []helpEntry{
 		{"↵", "search / play"},
+		{"L", "Library page"},
 		{"tab", "next category"},
 		{"a / A", "queue end / next"},
 		{"ctrl+p/n", "search history"},
-		{"ctrl+l", "library category"},
 		{"pgup/dn", "page list"},
 		{"ctrl+b/f", "page back / next"},
 		{"esc", "close"},
+	}},
+	{"DISCOVERY / QUEUE", []helpEntry{
+		{"↵", "open rec"},
+		{"e", "play rec"},
+		{"a / A", "queue / play next"},
+		{"w", "save prompt"},
+		{"y / enter", "confirm save"},
+		{"n / esc", "cancel save"},
+		{"P", "queue list"},
+		{"q", "queue manager"},
+		{"del", "remove track"},
+		{"ctrl+up/dn", "move track"},
 	}},
 	{"LOOK", []helpEntry{
 		{"v", "visualizer"},
@@ -90,7 +117,7 @@ var helpSections = []helpSection{
 	}},
 	{"OTHER", []helpEntry{
 		{"?", "this help"},
-		{"a", "account, sign out"},
+		{"a", "account menu"},
 		{"R", "reload engine"},
 		{"q / ctrl+c", "quit"},
 	}},

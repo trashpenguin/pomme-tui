@@ -72,6 +72,18 @@ type (
 		err       error
 		keepInput bool // library load keeps the input focused
 	}
+	discoveryMsg struct {
+		feed engine.Discovery
+		err  error
+	}
+	discoveryTracksMsg struct {
+		tracks []engine.Track
+		err    error
+	}
+	statsMsg struct {
+		res engine.SearchResults
+		err error
+	}
 	lyricsMsg struct {
 		id string // track the lyrics belong to
 		ly lyrics.Lyrics
@@ -80,8 +92,8 @@ type (
 		id  string // track the artwork belongs to
 		img image.Image
 	}
-	tileArtMsg struct {
-		id  string // recently-played entry the cover belongs to
+	recentArtMsg struct {
+		id  string
 		img image.Image
 	}
 	accountMsg struct {
@@ -125,13 +137,13 @@ type model struct {
 	eng         *engine.Engine
 	connections *connectionLifecycle
 	st          engine.State
-	focus       int // 0 queue, 1 recent, 2 player
+	focus       int // queue, library, recently played, player
 	selIdx      int
 
-	// recently played, shown as a cover grid under the queue
-	recent    []engine.Track
-	recentSel int
-	tileArt   map[string]image.Image // cover per recent entry, nil once fetched and empty
+	// recently played track history
+	recent             []engine.Track
+	recentSel          int
+	recentArtRequested map[string]bool
 
 	themeName string            // active theme, persisted across runs
 	cfg       map[string]string // parsed config.toml, read once at startup
@@ -206,6 +218,31 @@ type model struct {
 	sTab, sSel int
 	sBusy      bool
 	sRes       engine.SearchResults
+
+	discoveryOpen      bool
+	discoveryBusy      bool
+	discoveryErr       string
+	discoveryFeed      engine.Discovery
+	discoverySel       int
+	discoveryDetail    bool
+	discoveryTracks    []engine.Track
+	discoveryTrackSel  int
+	discoveryTitle     string
+	saveConfirmOpen    bool
+	saveConfirmTrack   engine.Track
+	queueOpen          bool
+	queuePrevFocus     int
+	statsOpen          bool
+	statsBusy          bool
+	statsErr           string
+	statsRes           engine.SearchResults
+	statsRange         statsRange
+	listenHistory      *listeningHistory
+	listenLastTrack    string
+	listenLastSave     time.Time
+	libraryOpen        bool
+	libraryErr         string
+	libraryDetailTitle string
 }
 
 func (m model) visualizerTitle() string {
@@ -431,36 +468,47 @@ func fetchArtworkCmd(id, template string) tea.Cmd {
 	}
 }
 
-// tileArtPx is smaller than the lyrics cover: grid tiles are a dozen cells wide,
-// and ten of them download at once.
-const tileArtPx = 128
+const recentArtworkPx = 96
+const recentArtworkCols = 6
+const recentArtworkRows = 3
+const recentCardRows = recentArtworkRows
 
-func fetchTileArtCmd(id, template string) tea.Cmd {
+func fetchRecentArtworkCmd(id, template string) tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), artworkTimeout)
 		defer cancel()
-		img, err := fetchArtwork(ctx, artworkURL(template, tileArtPx))
+		img, err := fetchArtwork(ctx, artworkURL(template, recentArtworkPx))
 		if err != nil {
-			return tileArtMsg{id: id} // nil image: the tile falls back to a placeholder
+			return recentArtMsg{id: id}
 		}
-		return tileArtMsg{id: id, img: img}
+		return recentArtMsg{id: id, img: img}
 	}
 }
 
-// fetchTileArtCmds fires one fetch per entry that has an artwork template and no
-// cover yet. Bubble Tea runs the batch concurrently.
-func (m model) fetchTileArtCmds() []tea.Cmd {
-	var cmds []tea.Cmd
-	for _, tr := range m.recent {
-		if tr.Art == "" {
-			continue
-		}
-		if _, done := m.tileArt[tr.ID]; done {
-			continue
-		}
-		cmds = append(cmds, fetchTileArtCmd(tr.ID, tr.Art))
+// requestRecentArtwork fetches only the thumbnails currently visible in the
+// compact history panel. The shared bounded cache keeps memory use predictable.
+func (m model) requestRecentArtwork() (model, tea.Cmd) {
+	if m.searchOpen || m.layout().recH == 0 || len(m.recent) == 0 {
+		return m, nil
 	}
-	return cmds
+	start, count := m.recentWindow(m.layout().recH - 3)
+	if m.recentArtRequested == nil {
+		m.recentArtRequested = make(map[string]bool)
+	}
+	var cmds []tea.Cmd
+	for i := start; i < start+count; i++ {
+		track := m.recent[i]
+		if track.Art == "" || m.recentArtRequested[track.ID] {
+			continue
+		}
+		if _, ok := m.artCache.get(track.ID); ok {
+			m.recentArtRequested[track.ID] = false
+			continue
+		}
+		m.recentArtRequested[track.ID] = true
+		cmds = append(cmds, fetchRecentArtworkCmd(track.ID, track.Art))
+	}
+	return m, tea.Batch(cmds...)
 }
 
 func (m model) Init() tea.Cmd {
@@ -471,13 +519,20 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.w, m.h = msg.Width, msg.Height
+		if m.focus == focusLibrary && !m.libraryVisible() {
+			m.focus = focusQueue
+		}
 		if m.focus == focusRecent && !m.recentVisible() {
-			m.focus = focusPlayer // the grid just shrank out of the layout
+			if m.libraryVisible() {
+				m.focus = focusLibrary
+			} else {
+				m.focus = focusPlayer
+			}
 		}
 	case tickMsg:
 		if !m.sleepUntil.IsZero() && !time.Now().Before(m.sleepUntil) {
 			m.sleepUntil = time.Time{}
-   m.sleepChoice=0
+			m.sleepChoice = 0
 			m.note, m.noteAt = "Sleep timer finished", m.t
 			if m.eng != nil {
 				return m, tea.Batch(tick(), doCmd(m.eng.Pause))
@@ -486,6 +541,20 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var visualizerClose tea.Cmd
 		now := time.Time(msg)
 		m.t += 1.0 / 30
+		if m.phase == phaseReady && m.st.Playing && m.st.Now.ID != "" {
+			if m.listenHistory == nil {
+				m.listenHistory = &listeningHistory{Days: make(map[string]map[string]listeningRecord)}
+			}
+			newPlay := m.listenLastTrack != m.st.Now.ID
+			m.listenLastTrack = m.st.Now.ID
+			m.listenHistory.record(m.st.Now, now, time.Second/30, newPlay)
+			if m.listenLastSave.IsZero() || now.Sub(m.listenLastSave) >= 15*time.Second {
+				m.listenHistory.save()
+				m.listenLastSave = now
+			}
+		} else if m.st.Now.ID == "" {
+			m.listenLastTrack = ""
+		}
 		if m.phase == phaseReady && m.st.Playing && m.st.Pos < m.st.Dur {
 			m.st.Pos += time.Second / 30 // optimistic between polls
 		}
@@ -573,6 +642,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case mprisQuitMsg:
 		m.closeVisualizerAsync()
 		m.mpris.Close()
+		m.listenHistory.save()
 		if m.eng != nil {
 			m.eng.Close()
 		}
@@ -691,6 +761,43 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.artCache.put(msg.id, msg.img)
 			m.applyAutoTheme()
 		}
+	case recentArtMsg:
+		if msg.img != nil {
+			m.artCache.put(msg.id, msg.img)
+			if m.recentArtRequested != nil {
+				m.recentArtRequested[msg.id] = false
+			}
+		} else if m.recentArtRequested != nil {
+			m.recentArtRequested[msg.id] = true // don't retry a known missing cover on every scroll
+		}
+	case discoveryMsg:
+		m.discoveryBusy = false
+		m.discoveryErr = ""
+		if msg.err != nil {
+			m.discoveryErr = msg.err.Error()
+		} else {
+			m.discoveryFeed = msg.feed
+			m.discoverySel = min(m.discoverySel, max(0, m.discoveryItemCount()-1))
+		}
+	case discoveryTracksMsg:
+		m.discoveryBusy = false
+		if msg.err != nil {
+			m.discoveryErr = msg.err.Error()
+			m.note, m.noteAt = msg.err.Error(), m.t
+		} else {
+			m.discoveryErr = ""
+			m.discoveryTracks = msg.tracks
+			m.discoveryTrackSel = 0
+			m.discoveryDetail = true
+		}
+	case statsMsg:
+		m.statsBusy = false
+		if msg.err != nil {
+			m.statsErr = msg.err.Error()
+		} else {
+			m.statsRes = msg.res
+			m.statsErr = ""
+		}
 	case noteMsg:
 		m.note, m.noteAt = string(msg), m.t
 		m.loading = "" // action failed — stop the spinner
@@ -699,9 +806,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case searchMsg:
 		m.libraryPaged = msg.category != ""
+		if m.libraryOpen {
+			m.libraryErr = ""
+			if msg.err != nil {
+				m.libraryErr = msg.err.Error()
+			}
+		}
 		if msg.category != "" {
 			m.sTab = map[string]int{"songs": 1, "favorites": 1, "albums": 2, "playlists": 3, "artists": 4}[msg.category]
-			m.note, m.noteAt = fmt.Sprintf("Library %s | page %d | Ctrl+L category | PgUp/PgDn", msg.category, msg.offset/50+1), m.t
+			m.note, m.noteAt = fmt.Sprintf("Library %s | page %d | PgUp/PgDn", msg.category, msg.offset/50+1), m.t
 		}
 		m.sBusy = false
 		if msg.err != nil {
@@ -719,13 +832,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if len(msg.res.Recent) > 0 {
 			m.recent = msg.res.Recent
 			m.recentSel = min(m.recentSel, len(m.recent)-1)
-			return m, tea.Batch(m.fetchTileArtCmds()...)
 		}
-	case tileArtMsg:
-		if m.tileArt == nil {
-			m.tileArt = map[string]image.Image{}
-		}
-		m.tileArt[msg.id] = msg.img // nil is a valid "tried and failed" marker
 	case accountMsg:
 		m.acctLoading = false
 		if msg.err == nil {
@@ -741,7 +848,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m.reconnect("signed out — sign in to Apple Music")
 	case tea.MouseMsg:
-  if m.mini {return m,nil}
+		if m.mini {
+			return m, nil
+		}
 		return m.updateMouse(msg)
 	case tea.KeyMsg:
 		// Any key dismisses help, and that key does nothing else — reading the
@@ -761,6 +870,18 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.acctOpen {
 			return m.updateAccount(msg)
 		}
+		if m.libraryOpen {
+			return m.updateLibraryView(msg)
+		}
+		if m.queueOpen {
+			return m.updateQueueManager(msg)
+		}
+		if m.discoveryOpen {
+			return m.updateDiscovery(msg)
+		}
+		if m.statsOpen {
+			return m.updateStats(msg)
+		}
 		if m.searchOpen {
 			return m.updateSearch(msg)
 		}
@@ -773,32 +894,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // the transport bar.
 const (
 	focusQueue = iota
+	focusLibrary
 	focusRecent
 	focusPlayer
 )
 
-// recentCols is how many cover tiles sit in a grid row. Fixed at two: it keeps
-// the tiles readable at the width the left column actually gets.
-const recentCols = 2
+func (m model) libraryVisible() bool { return m.layout().libH > 0 }
 
-// recentPanelHeight is the on-screen height of the recently-played grid for a
-// given top-area height, or 0 when the terminal is too short to fit both the
-// grid and a usable queue.
-func recentPanelHeight(topH int) int {
-	h := topH * 46 / 100
-	if h > 16 {
-		h = 16 // past this the covers stop growing — width is the binding limit
-	}
-	if h < 9 {
-		return 0 // tiles this short are unreadable — give the queue the space
-	}
-	return h
-}
-
-// recentVisible reports whether the grid is on screen and therefore focusable.
-func (m model) recentVisible() bool {
-	return len(m.recent) > 0 && recentPanelHeight(m.h-4) > 0
-}
+func (m model) recentVisible() bool { return m.layout().recH > 0 }
 
 func (m model) updateKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.phase != phaseReady {
@@ -822,23 +925,33 @@ func (m model) updateKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if direction := pageDirection(msg); direction != 0 {
 		switch m.focus {
 		case focusQueue:
-			m.selIdx = max(0, min(m.selIdx+direction*max(1,m.layout().queueRows()), len(m.st.Queue)-1))
+			m.selIdx = max(0, min(m.selIdx+direction*max(1, m.layout().queueRows()), len(m.st.Queue)-1))
+		case focusLibrary:
+			m.librarySelection = max(0, min(m.librarySelection+direction*4, 6))
 		case focusRecent:
-			m.librarySelection = max(0, min(m.librarySelection+direction*4, 5))
+			m.recentSel = max(0, min(m.recentSel+direction*4, len(m.recent)-1))
 		}
-		return m,nil
+		if m.focus == focusRecent {
+			var cmd tea.Cmd
+			m, cmd = m.requestRecentArtwork()
+			return m, cmd
+		}
+		return m, nil
 	}
 	switch msg.String() {
 	case "q", "ctrl+c":
 		m.closeVisualizerAsync()
 		m.mpris.Close()
+		m.listenHistory.save()
 		if eng != nil {
 			eng.Close()
 		}
 		return m, tea.Quit
 	case "tab":
-		m.focus = (m.focus + 1) % 3
-		if m.focus == focusRecent && !m.recentVisible() {
+		m.focus = (m.focus + 1) % 4
+		if m.focus == focusLibrary && !m.libraryVisible() {
+			m.focus = focusPlayer
+		} else if m.focus == focusRecent && !m.recentVisible() {
 			m.focus = focusPlayer
 		}
 	case " ":
@@ -873,11 +986,11 @@ func (m model) updateKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return noteMsg("Saved playlist: " + name)
 		}
 	case "L":
-		m.searchOpen = true
-		m.sInput = false
-		m.sBusy = true
-		m.libraryOffset = 0
-		return m, m.pagedLibraryCmd()
+		selection := 1 // Open Songs when Library is not focused.
+		if m.focus == focusLibrary {
+			selection = m.librarySelection
+		}
+		return m.openLibrarySelection(selection)
 	case "delete":
 		if m.focus == focusQueue {
 			index := m.selIdx
@@ -935,23 +1048,33 @@ func (m model) updateKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		switch m.focus {
 		case focusQueue:
 			m.selIdx = min(m.selIdx+1, max(0, len(m.st.Queue)-1))
+		case focusLibrary:
+			m.librarySelection = min(m.librarySelection+1, 6)
 		case focusRecent:
-			m.librarySelection = min(m.librarySelection+1, 5)
+			m.recentSel = min(m.recentSel+1, max(0, len(m.recent)-1))
 		default:
 			m.st.Volume = max(m.st.Volume-5, 0)
 			v := m.st.Volume
 			return m, doCmd(func() error { return eng.SetVolume(v) })
 		}
+		if m.focus == focusRecent {
+			return m.requestRecentArtwork()
+		}
 	case "k", "up":
 		switch m.focus {
 		case focusQueue:
 			m.selIdx = max(m.selIdx-1, 0)
-		case focusRecent:
+		case focusLibrary:
 			m.librarySelection = max(m.librarySelection-1, 0)
+		case focusRecent:
+			m.recentSel = max(m.recentSel-1, 0)
 		default:
 			m.st.Volume = min(m.st.Volume+5, 100)
 			v := m.st.Volume
 			return m, doCmd(func() error { return eng.SetVolume(v) })
+		}
+		if m.focus == focusRecent {
+			return m.requestRecentArtwork()
 		}
 	case "enter":
 		if m.focus == focusQueue && len(m.st.Queue) > 0 {
@@ -961,13 +1084,22 @@ func (m model) updateKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, doCmd(func() error { return eng.JumpTo(i) })
 		}
 		if m.focus == focusRecent {
-			m.libraryCategory = max(0, min(m.librarySelection-1, 4)) // Discovery opens Songs.
-			m.libraryOffset = 0
-			m.searchOpen, m.sInput, m.sBusy = true, false, true
-			return m, m.pagedLibraryCmd()
+			if m.recentSel < len(m.recent) {
+				tr := m.recent[m.recentSel]
+				m.loading, m.loadSnap, m.loadStart = tr.Title, snap(m.st), m.t
+				m.loadHideQueue = true
+				m.beginAudioInitialization()
+				kind, id := tr.Kind, tr.ID
+				play := doCmd(func() error { return eng.Play(kind, id) })
+				m, art := m.requestRecentArtwork()
+				return m, tea.Batch(play, art)
+			}
+		}
+		if m.focus == focusLibrary {
+			return m.openLibrarySelection(m.librarySelection)
 		}
 	case "left":
-		if m.focus == focusRecent {
+		if m.focus == focusLibrary {
 			m.librarySelection = max(m.librarySelection-1, 0)
 			return m, nil
 		}
@@ -978,8 +1110,8 @@ func (m model) updateKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, doCmd(func() error { return eng.SeekTo(p) })
 		}
 	case "right":
-		if m.focus == focusRecent {
-			m.librarySelection = min(m.librarySelection+1, 5)
+		if m.focus == focusLibrary {
+			m.librarySelection = min(m.librarySelection+1, 6)
 			return m, nil
 		}
 		if m.focus == focusPlayer {
@@ -1078,99 +1210,64 @@ func (m model) queuePanel(w, h int) string {
 	return strings.TrimRight(b.String(), "\n")
 }
 
-// recentTitle counts the grid rows so the scroll position is visible.
+// recentTitle keeps the selected track's position visible while the list scrolls.
 func (m model) recentTitle() string {
 	if len(m.recent) == 0 {
 		return "RECENTLY PLAYED"
 	}
-	rows := (len(m.recent) + recentCols - 1) / recentCols
-	return fmt.Sprintf("RECENTLY PLAYED · %d/%d", m.recentSel/recentCols+1, rows)
+	return fmt.Sprintf("RECENTLY PLAYED · %d/%d", m.recentSel+1, len(m.recent))
 }
 
-// placeholderTile stands in until a cover arrives, or forever when the entry has
-// no artwork at all.
-func placeholderTile(w, h int) []string {
-	st := lipgloss.NewStyle().Foreground(borderDim)
-	out := make([]string, h)
-	for r := range out {
-		out[r] = st.Render(strings.Repeat("░", w))
+// recentWindow maps the visible body height to whole artwork cards, keeping
+// the selected track visible as the user moves through listening history.
+func (m model) recentWindow(rows int) (start, count int) {
+	visible := rows / recentCardRows
+	if visible <= 0 || len(m.recent) == 0 {
+		return 0, 0
 	}
-	return out
+	count = min(visible, len(m.recent))
+	start = max(0, min(m.recentSel-count/2, len(m.recent)-count))
+	return start, count
 }
 
-// recentPanel draws one row of cover tiles from the recently-played list.
-// Rows scroll with ↑/↓; ←/→ move between the tiles of the current row.
-func (m model) recentPanel(w, h int) string {
+// recentListPanel draws a compact, scrollable list beneath the library box.
+// The containing panel uses one row for its title, leaving h-1 rows for tracks.
+func (m model) recentListPanel(w, h int) string {
+	rows := max(0, h-1)
+	if rows == 0 {
+		return ""
+	}
 	faint := lipgloss.NewStyle().Foreground(fgFaint)
-	rows := h - 1
 	if len(m.recent) == 0 {
 		return centeredRows(faint.Render(" nothing played yet"), w, rows)
 	}
-	// Covers are square in half-block cells: two columns per row. Start from the
-	// height available and shrink if the width is the tighter bound.
-	const minGap = 2
-	artRows := rows - 2 // two text lines under every cover
-	artCols := artRows * 2
-	if maxCols := (w - (recentCols+1)*minGap) / recentCols; artCols > maxCols {
-		artCols = maxCols - maxCols%2
-		artRows = artCols / 2
-	}
-	if artCols < 6 || artRows < 2 {
-		return centeredRows(faint.Render(" pane too narrow for covers"), w, rows)
-	}
-	// Tiles are exactly as wide as their cover, so a caption never sticks out
-	// past the artwork above it. The slack spreads into equal margins at both
-	// edges and between the tiles, which centers the row in the panel.
-	tileW := artCols
-	gap := (w - recentCols*artCols) / (recentCols + 1)
-
-	start := m.recentSel / recentCols * recentCols
-	grid := make([]string, artRows+2)
-	for c := 0; c < recentCols; c++ {
-		for r := range grid {
-			grid[r] += strings.Repeat(" ", gap)
-		}
-		i := start + c
-		if i >= len(m.recent) {
-			for r := range grid {
-				grid[r] += strings.Repeat(" ", tileW)
-			}
-			continue
-		}
-		tr := m.recent[i]
-		cover := placeholderTile(artCols, artRows)
-		if img := m.tileArt[tr.ID]; img != nil {
-			cover = renderArtwork(img, artCols, artRows)
-		}
-		for r := 0; r < artRows; r++ {
-			line := ""
-			if r < len(cover) {
-				line = cover[r]
-			}
-			grid[r] += pad(line, tileW)
-		}
-		ts, as, mark := lipgloss.NewStyle().Foreground(fgDim), faint, " "
+	start, count := m.recentWindow(rows)
+	var lines []string
+	for visible := 0; visible < count; visible++ {
+		i := start + visible
+		track := m.recent[i]
+		style, mark := faint, "  "
 		if m.focus == focusRecent && i == m.recentSel {
-			ts = lipgloss.NewStyle().Foreground(accentHi).Bold(true)
-			as = lipgloss.NewStyle().Foreground(fgDim)
-			mark = "▸"
+			style, mark = lipgloss.NewStyle().Foreground(accentHi).Bold(true), "› "
 		}
-		title := pad(ts.Render(mark+tr.Title), tileW)
-		artist := pad(as.Render(" "+tr.Artist), tileW)
-		if m.focus == focusRecent && i == m.recentSel {
-			sel := lipgloss.NewStyle().Background(selBg)
-			title, artist = sel.Render(title), sel.Render(artist)
+		thumb := make([]string, recentArtworkRows)
+		for r := range thumb {
+			thumb[r] = lipgloss.NewStyle().Foreground(borderDim).Render("░░░░░░")
 		}
-		grid[artRows] += title
-		grid[artRows+1] += artist
+		if img, ok := m.artCache.get(track.ID); ok && img != nil {
+			if cover := renderArtwork(img, recentArtworkCols, recentArtworkRows); len(cover) == recentArtworkRows {
+				thumb = cover
+			}
+		}
+		label := mark + track.Title
+		lines = append(lines, pad(thumb[0]+"  "+style.Render(label), w))
+		lines = append(lines, pad(thumb[1]+"  "+faint.Render(track.Artist), w))
+		lines = append(lines, pad(thumb[2]+"  "+faint.Render(" "), w))
 	}
-	for r := range grid {
-		grid[r] = pad(grid[r], w)
+	for len(lines) < rows {
+		lines = append(lines, pad("", w))
 	}
-	for len(grid) < rows {
-		grid = append(grid, pad("", w))
-	}
-	return strings.Join(grid[:rows], "\n")
+	return strings.Join(lines, "\n")
 }
 
 func liveBarHeights(bands [32]float64, bars, rows int) []float64 {
@@ -1511,8 +1608,10 @@ func (m model) transportPanel(w int) string {
 	// there may be no room for them. pad() truncates silently, which is how the
 	// old line lost its tail without anyone noticing; drop to the short form
 	// instead, and then to nothing, so whatever is shown is shown whole.
-	if !m.sleepUntil.IsZero(){l1 += dim.Render(" | sleep "+time.Until(m.sleepUntil).Round(time.Second).String())}
- hints = fitHints(hints, w-lipgloss.Width(l1)-1)
+	if !m.sleepUntil.IsZero() {
+		l1 += dim.Render(" | sleep " + time.Until(m.sleepUntil).Round(time.Second).String())
+	}
+	hints = fitHints(hints, w-lipgloss.Width(l1)-1)
 	r1 := faint.Render(hints)
 	line1 := l1 + strings.Repeat(" ", max(1, w-lipgloss.Width(l1)-lipgloss.Width(r1))) + r1
 
@@ -1597,19 +1696,31 @@ func (m model) View() string {
 	if m.acctOpen {
 		return m.accountView()
 	}
+	if m.libraryOpen {
+		return m.libraryView()
+	}
+	if m.queueOpen {
+		return m.queueManagerView()
+	}
+	if m.discoveryOpen {
+		return m.discoveryView()
+	}
+	if m.statsOpen {
+		return m.statsView()
+	}
 	if m.searchOpen {
 		return m.searchView()
 	}
 	searchBar := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(borderDim).
-		Width(m.w-2).Render(lipgloss.NewStyle().Foreground(fgFaint).Render(" Search  ") +
-			lipgloss.NewStyle().Foreground(fgBright).Render(m.sQuery) +
-			lipgloss.NewStyle().Foreground(fgFaint).Render("   press / to search"))
+		Width(m.w - 2).Render(lipgloss.NewStyle().Foreground(fgFaint).Render(" Search  ") +
+		lipgloss.NewStyle().Foreground(fgBright).Render(m.sQuery) +
+		lipgloss.NewStyle().Foreground(fgFaint).Render("   press / to search"))
 	lay := m.layout()
 
 	left := panel("pomme · "+m.queueTitle(), m.queuePanel(lay.qw, lay.qh), lay.qw, lay.qh,
 		m.focus == focusQueue, m.pulsedAccent())
-	if lay.recH > 0 {
-		library := []string{"Discovery", "Songs", "Albums", "Playlists", "Artists", "Favorites"}
+	if lay.libH > 0 {
+		library := []string{"Discovery", "Songs", "Albums", "Playlists", "Artists", "Favorites", "Stats"}
 		var items []string
 		for i, name := range library {
 			mark := "  "
@@ -1619,7 +1730,12 @@ func (m model) View() string {
 			items = append(items, mark+name)
 		}
 		left = lipgloss.JoinVertical(lipgloss.Left, left,
-			panel("LIBRARY · L / Ctrl+L", strings.Join(items[:min(len(items), max(1, lay.recH-3))], "\n"), lay.qw, lay.recH-2,
+			panel("LIBRARY", strings.Join(items[:min(len(items), max(1, lay.libH-3))], "\n"), lay.qw, lay.libH-2,
+				m.focus == focusLibrary, m.pulsedAccent()))
+	}
+	if lay.recH > 0 {
+		left = lipgloss.JoinVertical(lipgloss.Left, left,
+			panel(m.recentTitle(), m.recentListPanel(lay.qw, lay.recH-2), lay.qw, lay.recH-2,
 				m.focus == focusRecent, m.pulsedAccent()))
 	}
 	viz := panel(m.visualizerTitle(), m.vizPanel(lay.vw, lay.vh-2), lay.vw, lay.vh-2,
@@ -1677,6 +1793,7 @@ func main() {
 		mprisQuit:   make(chan struct{}, 1),
 	}
 	m.searchHistory = loadSearchHistory()
+	m.listenHistory = loadListeningHistory()
 	m.historyIndex = -1
 	m.cfg = loadConfig()
 	m.vizMode = loadVizMode()
@@ -1689,6 +1806,7 @@ func main() {
 	// wheel, and all-motion floods the loop with a message per pointer move.
 	p := tea.NewProgram(m, tea.WithAltScreen(), tea.WithMouseCellMotion())
 	_, err := p.Run()
+	m.listenHistory.save()
 	connections.shutdown()
 	if err != nil {
 		log.Fatal(err)

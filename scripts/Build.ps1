@@ -1,4 +1,4 @@
-param([string]$Version = '0.2.0', [switch]$SkipTests)
+param([string]$Version = '0.2.5', [switch]$SkipTests)
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'Pomme.Helpers.ps1')
 $root = Split-Path $PSScriptRoot -Parent

@@ -26,58 +26,120 @@ pub struct Controller {
 }
 impl Controller {
     pub fn save_session(&self) -> Result<()> {
-        let Some(root) = std::env::var_os("POMME_DATA_DIR") else { return Ok(()); };
+        let Some(root) = std::env::var_os("POMME_DATA_DIR") else {
+            return Ok(());
+        };
         let root = std::path::PathBuf::from(root);
         std::fs::create_dir_all(&root)?;
-        let data=serde_json::json!({"queue":self.queue.items,"index":self.queue.pos,"position":self.position,"volume":(self.config.gain*100.0) as u8,"repeat":self.queue.repeat,"shuffle":self.queue.shuffle});
-        let temp=root.join("session.tmp");
-        std::fs::write(&temp,serde_json::to_vec(&data)?)?;
-        std::fs::rename(temp,root.join("session.json"))?;
+        let data = serde_json::json!({"queue":self.queue.items,"index":self.queue.pos,"position":self.position,"volume":(self.config.gain*100.0) as u8,"repeat":self.queue.repeat,"shuffle":self.queue.shuffle});
+        let temp = root.join("session.tmp");
+        std::fs::write(&temp, serde_json::to_vec(&data)?)?;
+        std::fs::rename(temp, root.join("session.json"))?;
         Ok(())
     }
     pub fn restore_session(&mut self) -> Result<()> {
-        let Some(root)=std::env::var_os("POMME_DATA_DIR") else{return Ok(())};
+        let Some(root) = std::env::var_os("POMME_DATA_DIR") else {
+            return Ok(());
+        };
         self.restore_session_path(&std::path::PathBuf::from(root).join("session.json"))
     }
-    fn restore_session_path(&mut self,path:&std::path::Path)->Result<()> {
-        if !path.is_file(){return Ok(())}
-        anyhow::ensure!(std::fs::metadata(&path)?.len()<=2_000_000,"session too large");
-        let saved:serde_json::Value=serde_json::from_slice(&std::fs::read(path)?)?;
-        let tracks:Vec<WireTrack>=serde_json::from_value(saved["queue"].clone())?;
-        anyhow::ensure!(tracks.len()<=1000 && tracks.iter().all(|t| t.kind=="song" && !t.id.is_empty() && t.id.len()<=256),"invalid saved queue");
-        self.queue=Queue::new(tracks);
-        self.queue.pos=(saved["index"].as_u64().unwrap_or(0) as usize).min(self.queue.items.len().saturating_sub(1));
-        self.queue.repeat=saved["repeat"].as_u64().unwrap_or(0).min(2) as u8;
-        if saved["shuffle"].as_bool()==Some(true){self.queue.toggle_shuffle()}
+    fn restore_session_path(&mut self, path: &std::path::Path) -> Result<()> {
+        if !path.is_file() {
+            return Ok(());
+        }
+        anyhow::ensure!(
+            std::fs::metadata(&path)?.len() <= 2_000_000,
+            "session too large"
+        );
+        let saved: serde_json::Value = serde_json::from_slice(&std::fs::read(path)?)?;
+        let tracks: Vec<WireTrack> = serde_json::from_value(saved["queue"].clone())?;
+        anyhow::ensure!(
+            tracks.len() <= 1000
+                && tracks
+                    .iter()
+                    .all(|t| t.kind == "song" && !t.id.is_empty() && t.id.len() <= 256),
+            "invalid saved queue"
+        );
+        self.queue = Queue::new(tracks);
+        self.queue.pos = (saved["index"].as_u64().unwrap_or(0) as usize)
+            .min(self.queue.items.len().saturating_sub(1));
+        self.queue.repeat = saved["repeat"].as_u64().unwrap_or(0).min(2) as u8;
+        if saved["shuffle"].as_bool() == Some(true) {
+            self.queue.toggle_shuffle()
+        }
         self.volume(saved["volume"].as_i64().unwrap_or(50));
-        self.duration=self.queue.items.get(self.queue.pos).map_or(0,|t|t.dur_ms);
-        self.position=saved["position"].as_u64().unwrap_or(0).min(self.duration);
-        self.paused=true;
+        self.duration = self.queue.items.get(self.queue.pos).map_or(0, |t| t.dur_ms);
+        self.position = saved["position"].as_u64().unwrap_or(0).min(self.duration);
+        self.paused = true;
         self.recover()
     }
-    pub fn edit_queue(&mut self, action:&str, index:usize, target:usize) -> Result<()> {
-        anyhow::ensure!(action=="clear" || (index<self.queue.items.len() && (action=="remove" || (action=="move" && target<self.queue.items.len()))),"invalid queue edit");
-        self.generation=self.generation.wrapping_add(1);
-        if action=="clear" {
-            self.player.pause();self.queue=Queue::default();self.playing=false;self.paused=true;self.initializing=false;self.position=0;self.duration=0;
-            let (player,events)=self.factory.start(self.config.clone());self.player=player;self.events=events;
+    pub fn edit_queue(&mut self, action: &str, index: usize, target: usize) -> Result<()> {
+        anyhow::ensure!(
+            action == "clear"
+                || (index < self.queue.items.len()
+                    && (action == "remove"
+                        || (action == "move" && target < self.queue.items.len()))),
+            "invalid queue edit"
+        );
+        self.generation = self.generation.wrapping_add(1);
+        if action == "clear" {
+            self.player.pause();
+            self.queue = Queue::default();
+            self.playing = false;
+            self.paused = true;
+            self.initializing = false;
+            self.position = 0;
+            self.duration = 0;
+            let (player, events) = self.factory.start(self.config.clone());
+            self.player = player;
+            self.events = events;
         } else {
-            anyhow::ensure!(index<self.queue.items.len(),"invalid queue index");
-            let current=self.queue.pos;
-            let mut items=self.queue.items.clone();
-            let new_pos=if action=="remove" {
+            anyhow::ensure!(index < self.queue.items.len(), "invalid queue index");
+            let current = self.queue.pos;
+            let mut items = self.queue.items.clone();
+            let new_pos = if action == "remove" {
                 items.remove(index);
-                if current>index {current-1} else {current.min(items.len().saturating_sub(1))}
+                if current > index {
+                    current - 1
+                } else {
+                    current.min(items.len().saturating_sub(1))
+                }
             } else {
-                anyhow::ensure!(action=="move" && target<items.len(),"invalid queue destination");
-                let item=items.remove(index);items.insert(target,item);
-                if current==index {target} else if index<current && target>=current {current-1} else if index>current && target<=current {current+1} else {current}
+                anyhow::ensure!(
+                    action == "move" && target < items.len(),
+                    "invalid queue destination"
+                );
+                let item = items.remove(index);
+                items.insert(target, item);
+                if current == index {
+                    target
+                } else if index < current && target >= current {
+                    current - 1
+                } else if index > current && target <= current {
+                    current + 1
+                } else {
+                    current
+                }
             };
-            let repeat=self.queue.repeat;let shuffle=self.queue.shuffle;
-            self.queue=Queue::new(items);self.queue.pos=new_pos;self.queue.repeat=repeat;if shuffle{self.queue.toggle_shuffle()}
-            if action=="remove" && index==current {
-                if self.queue.items.is_empty(){return self.edit_queue("clear",0,0)}
-                if self.paused {self.position=0;self.duration=self.queue.items[self.queue.pos].dur_ms;self.recover()?;} else {self.start_current()?;}
+            let repeat = self.queue.repeat;
+            let shuffle = self.queue.shuffle;
+            self.queue = Queue::new(items);
+            self.queue.pos = new_pos;
+            self.queue.repeat = repeat;
+            if shuffle {
+                self.queue.toggle_shuffle()
+            }
+            if action == "remove" && index == current {
+                if self.queue.items.is_empty() {
+                    return self.edit_queue("clear", 0, 0);
+                }
+                if self.paused {
+                    self.position = 0;
+                    self.duration = self.queue.items[self.queue.pos].dur_ms;
+                    self.recover()?;
+                } else {
+                    self.start_current()?;
+                }
             }
         }
         Ok(())
@@ -457,26 +519,28 @@ mod tests {
     }
     #[test]
     fn editing_queue_keeps_current_track_and_resets_indices() {
-        let (mut ctrl,_)=controller();
-        ctrl.edit_queue("move",0,1).unwrap();
-        assert_eq!(ctrl.queue.items[ctrl.queue.pos].id,"a");
-        ctrl.edit_queue("remove",0,0).unwrap();
-        assert_eq!(ctrl.queue.items[ctrl.queue.pos].id,"a");
-        ctrl.edit_queue("clear",0,0).unwrap();
+        let (mut ctrl, _) = controller();
+        ctrl.edit_queue("move", 0, 1).unwrap();
+        assert_eq!(ctrl.queue.items[ctrl.queue.pos].id, "a");
+        ctrl.edit_queue("remove", 0, 0).unwrap();
+        assert_eq!(ctrl.queue.items[ctrl.queue.pos].id, "a");
+        ctrl.edit_queue("clear", 0, 0).unwrap();
         assert!(ctrl.queue.items.is_empty());
         assert!(!ctrl.playing && !ctrl.initializing);
     }
 
     #[test]
     fn restored_queue_is_paused_at_saved_position() {
-        let (mut ctrl,log)=controller();
-        let path=std::env::temp_dir().join(format!("pomme-session-test-{}.json",fastrand::u64(..)));
+        let (mut ctrl, log) = controller();
+        let path =
+            std::env::temp_dir().join(format!("pomme-session-test-{}.json", fastrand::u64(..)));
         std::fs::write(&path,serde_json::to_vec(&serde_json::json!({"queue":[track("a"),track("b")],"index":1,"position":10000,"volume":25,"repeat":2,"shuffle":false})).unwrap()).unwrap();
-        let result=ctrl.restore_session_path(&path);
-        std::fs::remove_file(path).unwrap();result.unwrap();
+        let result = ctrl.restore_session_path(&path);
+        std::fs::remove_file(path).unwrap();
+        result.unwrap();
         assert!(ctrl.paused && !ctrl.playing && !ctrl.initializing);
-        assert_eq!(ctrl.queue.pos,1);assert_eq!(ctrl.position,10000);
+        assert_eq!(ctrl.queue.pos, 1);
+        assert_eq!(ctrl.position, 10000);
         assert!(log.lock().unwrap().contains(&"paused:b:10000".into()));
     }
-
 }
