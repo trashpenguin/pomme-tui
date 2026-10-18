@@ -78,26 +78,26 @@ func TestRecentGridNavigationClamps(t *testing.T) {
 	}
 
 	step(tea.KeyLeft)
-	if m.recentSel != 0 {
-		t.Fatalf("left at the start moved to %d, want 0", m.recentSel)
+	if m.librarySelection != 0 {
+		t.Fatalf("left at the start moved to %d, want 0", m.librarySelection)
 	}
 	step(tea.KeyRight)
-	if m.recentSel != 1 {
-		t.Fatalf("right gave %d, want 1", m.recentSel)
+	if m.librarySelection != 1 {
+		t.Fatalf("right gave %d, want 1", m.librarySelection)
 	}
 	step(tea.KeyDown)
-	if m.recentSel != 1+recentCols {
-		t.Fatalf("down gave %d, want %d", m.recentSel, 1+recentCols)
+	if m.librarySelection != 2 {
+		t.Fatalf("down gave %d, want 2", m.librarySelection)
 	}
 	step(tea.KeyUp)
-	if m.recentSel != 1 {
-		t.Fatalf("up gave %d, want 1", m.recentSel)
+	if m.librarySelection != 1 {
+		t.Fatalf("up gave %d, want 1", m.librarySelection)
 	}
 	for i := 0; i < 20; i++ {
 		step(tea.KeyDown)
 	}
-	if m.recentSel != len(m.recent)-1 {
-		t.Fatalf("down past the end gave %d, want %d", m.recentSel, len(m.recent)-1)
+	if m.librarySelection != 5 {
+		t.Fatalf("down past the end gave %d, want last library item (5)", m.librarySelection)
 	}
 }
 
@@ -175,22 +175,21 @@ func TestRecentPanelFitsItsBox(t *testing.T) {
 	}
 }
 
-// Enter on a tile replaces the queue with that album and starts loading it.
-func TestEnterOnTilePlaysTheAlbum(t *testing.T) {
+// Enter on a library item opens the matching paged library view.
+func TestEnterOnLibraryCategoryOpensAlbumList(t *testing.T) {
 	m := recentModel()
 	m.focus = focusRecent
-	m.recentSel = 2
-	m.eng = &engine.Engine{}
+	m.librarySelection = 2
 
 	next, cmd := m.updateKeys(tea.KeyMsg{Type: tea.KeyEnter})
 	got := next.(model)
 	if cmd == nil {
-		t.Fatal("enter on a tile returned no command")
+		t.Fatal("enter on a library item returned no command")
 	}
-	if got.loading != m.recent[2].Title {
-		t.Fatalf("loading = %q, want %q", got.loading, m.recent[2].Title)
+	if !got.searchOpen || got.sInput {
+		t.Fatalf("library overlay state searchOpen=%v input=%v, want opened without text input", got.searchOpen, got.sInput)
 	}
-	if !got.loadHideQueue {
-		t.Error("playing an album replaces the queue, so it should be hidden while loading")
+	if got.libraryCategory != 1 || got.libraryOffset != 0 || !got.sBusy {
+		t.Errorf("library category=%d offset=%d busy=%v, want Albums (1), first page, loading", got.libraryCategory, got.libraryOffset, got.sBusy)
 	}
 }

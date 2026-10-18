@@ -47,7 +47,7 @@ func (l layout) queueTop() int  { return 5 }
 
 // recentTop is the screen row the cover grid starts on, directly below the
 // queue box.
-func (l layout) recentTop() int { return l.qh + 2 + 2 }
+func (l layout) recentTop() int { return l.qh + 2 + 2 + 3 }
 
 // progressGeometry returns the column the progress bar starts at within the
 // transport's content, and its width. transportPanel lays the second line out
@@ -109,8 +109,9 @@ func (m model) updateMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	lay := m.layout()
 	inQueue := msg.X < lay.leftW && msg.Y >= lay.queueTop() &&
 		msg.Y < lay.queueTop()+lay.queueRows()
+	recentPanelTop := lay.queueTop() + lay.qh
 	inRecent := lay.recH > 0 && msg.X < lay.leftW &&
-		msg.Y >= lay.recentTop() && msg.Y < lay.topH
+		msg.Y >= recentPanelTop && msg.Y < recentPanelTop+lay.recH
 
 	switch msg.Button {
 	case tea.MouseButtonWheelUp, tea.MouseButtonWheelDown:
@@ -127,7 +128,7 @@ func (m model) updateMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 			m.selIdx = max(0, min(m.selIdx+step, len(m.st.Queue)-1))
 		case inRecent:
 			m.focus = focusRecent
-			m.recentSel = max(0, min(m.recentSel+step*recentCols, len(m.recent)-1))
+			m.librarySelection = max(0, min(m.librarySelection+step, 5))
 		}
 		return m, nil
 
@@ -162,21 +163,17 @@ func (m model) click(msg tea.MouseMsg, lay layout, inQueue, inRecent bool) (tea.
 		return m, doCmd(func() error { return eng.JumpTo(i) })
 
 	case inRecent:
-		i := m.recentTileAt(msg.X-1, lay.qw)
-		if i < 0 {
+		// The library's selectable rows begin below its border and title.
+		// Ignore clicks on those two decorative rows.
+		i := msg.Y - lay.recentTop()
+		if i < 0 || i >= 6 {
 			return m, nil
 		}
-		m.focus, m.recentSel = focusRecent, i
-		if m.audioInitializing() {
-			m.note, m.noteAt = audioInitializingText, m.t
-			return m, nil
-		}
-		tr := m.recent[i]
-		m.loading, m.loadSnap, m.loadStart = tr.Title, snap(m.st), m.t
-		m.loadHideQueue = true
-		m.beginAudioInitialization()
-		kind, id := tr.Kind, tr.ID
-		return m, doCmd(func() error { return eng.Play(kind, id) })
+		m.focus, m.librarySelection = focusRecent, i
+		m.libraryCategory = max(0, min(i-1, 4)) // Discovery opens Songs.
+		m.libraryOffset = 0
+		m.searchOpen, m.sInput, m.sBusy = true, false, true
+		return m, m.pagedLibraryCmd()
 
 	case msg.Y == m.h-2 && m.st.Dur > 0:
 		// The transport's second line. Seeking is the one thing a pointer does

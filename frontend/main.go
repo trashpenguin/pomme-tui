@@ -106,14 +106,15 @@ type model struct {
 
 	saveQueueUntil time.Time
 
-	libraryCategory int
-	libraryOffset   int
-	libraryPaged    bool
-	mini            bool
-	sleepUntil      time.Time
-	sleepChoice     int
-	searchHistory   []string
-	historyIndex    int
+	libraryCategory  int
+	libraryOffset    int
+	libraryPaged     bool
+	librarySelection int
+	mini             bool
+	sleepUntil       time.Time
+	sleepChoice      int
+	searchHistory    []string
+	historyIndex     int
 
 	w, h        int
 	t           float64 // seconds since start, drives animation
@@ -823,7 +824,7 @@ func (m model) updateKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case focusQueue:
 			m.selIdx = max(0, min(m.selIdx+direction*max(1,m.layout().queueRows()), len(m.st.Queue)-1))
 		case focusRecent:
-			m.recentSel = max(0, min(m.recentSel+direction*recentCols*2, len(m.recent)-1))
+			m.librarySelection = max(0, min(m.librarySelection+direction*4, 5))
 		}
 		return m,nil
 	}
@@ -935,7 +936,7 @@ func (m model) updateKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case focusQueue:
 			m.selIdx = min(m.selIdx+1, max(0, len(m.st.Queue)-1))
 		case focusRecent:
-			m.recentSel = min(m.recentSel+recentCols, max(0, len(m.recent)-1))
+			m.librarySelection = min(m.librarySelection+1, 5)
 		default:
 			m.st.Volume = max(m.st.Volume-5, 0)
 			v := m.st.Volume
@@ -946,7 +947,7 @@ func (m model) updateKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case focusQueue:
 			m.selIdx = max(m.selIdx-1, 0)
 		case focusRecent:
-			m.recentSel = max(m.recentSel-recentCols, 0)
+			m.librarySelection = max(m.librarySelection-1, 0)
 		default:
 			m.st.Volume = min(m.st.Volume+5, 100)
 			v := m.st.Volume
@@ -959,17 +960,15 @@ func (m model) updateKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.loadSnap, m.loadStart, m.loadHideQueue = snap(m.st), m.t, false
 			return m, doCmd(func() error { return eng.JumpTo(i) })
 		}
-		if m.focus == focusRecent && m.recentSel < len(m.recent) {
-			tr := m.recent[m.recentSel]
-			m.loading, m.loadSnap, m.loadStart = tr.Title, snap(m.st), m.t
-			m.loadHideQueue = true // an album or playlist replaces the whole queue
-			m.beginAudioInitialization()
-			kind, id := tr.Kind, tr.ID
-			return m, doCmd(func() error { return eng.Play(kind, id) })
+		if m.focus == focusRecent {
+			m.libraryCategory = max(0, min(m.librarySelection-1, 4)) // Discovery opens Songs.
+			m.libraryOffset = 0
+			m.searchOpen, m.sInput, m.sBusy = true, false, true
+			return m, m.pagedLibraryCmd()
 		}
 	case "left":
 		if m.focus == focusRecent {
-			m.recentSel = max(m.recentSel-1, 0)
+			m.librarySelection = max(m.librarySelection-1, 0)
 			return m, nil
 		}
 		if m.focus == focusPlayer {
@@ -980,7 +979,7 @@ func (m model) updateKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case "right":
 		if m.focus == focusRecent {
-			m.recentSel = min(m.recentSel+1, max(0, len(m.recent)-1))
+			m.librarySelection = min(m.librarySelection+1, 5)
 			return m, nil
 		}
 		if m.focus == focusPlayer {
@@ -1614,7 +1613,9 @@ func (m model) View() string {
 		var items []string
 		for i, name := range library {
 			mark := "  "
-			if i == m.libraryCategory+1 { mark = "› " }
+			if i == m.librarySelection {
+				mark = "› "
+			}
 			items = append(items, mark+name)
 		}
 		left = lipgloss.JoinVertical(lipgloss.Left, left,
