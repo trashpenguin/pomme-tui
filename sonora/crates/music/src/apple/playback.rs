@@ -83,10 +83,13 @@ impl Fetch for Apple {
     /// makes a join gapless needs it: the encode itself says nowhere how long the music is,
     /// only how long the file is.
     async fn load(&self, id: &str) -> Result<Loaded> {
-        let (prepared, details) = tokio::join!(
-            stream::prepare(self.client.http(), id, self.client.user_token()),
-            self.client.playback_details(id),
-        );
+        let (prepared, details) = tokio::time::timeout(Duration::from_secs(45), async {
+            tokio::join!(
+                stream::prepare(self.client.http(), id, self.client.user_token()),
+                self.client.playback_details(id),
+            )
+        })
+        .await?;
         let prepared = prepared?;
         Ok(Loaded {
             duration: prepared.duration.or(details.duration),
@@ -101,6 +104,18 @@ impl Fetch for Apple {
 
     fn loudness(&self, loaded: &Loaded) -> Option<Loudness> {
         loaded.loudness
+    }
+
+    fn gated(&self, error: &anyhow::Error) -> bool {
+        http_status(error).is_some_and(|status| matches!(status.as_u16(), 401 | 403))
+    }
+
+    fn retryable(&self, error: &anyhow::Error) -> bool {
+        retryable(error)
+    }
+
+    fn failed(&self, loaded: &Loaded) -> bool {
+        loaded.media.failed()
     }
 
     async fn downloaded(&self, loaded: &Loaded) {
@@ -130,7 +145,15 @@ impl Fetch for Apple {
     fn open(&self, id: &str, loaded: &Loaded, at: Duration) -> Option<Self::Source> {
         let media = &loaded.media;
         let opening = Instant::now();
-        let entry = (!at.is_zero()).then(|| media.entry(at)).flatten();
+        let entry = if at.is_zero() {
+            None
+        } else {
+            let Some(entry) = media.entry(at) else {
+                log::warn!("apple: cannot locate the requested playback position for {id}");
+                return None;
+            };
+            Some(entry)
+        };
         let reader = match entry {
             Some(entry) => media.reader_at(entry),
             None => media.reader(),
@@ -172,5 +195,67 @@ impl Fetch for Apple {
             decrypting.as_secs_f32()
         );
         Some(Trimmed::new(decoder, skip, take))
+    }
+}
+
+/// Preserve status codes through context wrappers without inspecting URLs or account data.
+fn http_status(error: &anyhow::Error) -> Option<reqwest::StatusCode> {
+    error.chain().find_map(|cause| {
+        cause
+            .downcast_ref::<reqwest::Error>()
+            .and_then(reqwest::Error::status)
+    })
+}
+
+/// Retry transport failures and server errors; account and catalog failures need a decision.
+fn retryable(error: &anyhow::Error) -> bool {
+    error.chain().any(|cause| {
+        cause
+            .downcast_ref::<tokio::time::error::Elapsed>()
+            .is_some()
+            || cause.downcast_ref::<crate::stream::Interrupted>().is_some()
+            || cause.downcast_ref::<reqwest::Error>().is_some_and(|error| {
+                error.is_timeout()
+                    || error.is_connect()
+                    || error.is_body()
+                    || error.is_request()
+                    || error
+                        .status()
+                        .is_some_and(|status| status.is_server_error())
+            })
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn account_and_catalog_failures_are_not_retried_as_network_interruptions() {
+        for code in [401, 403, 404, 429, 500, 503] {
+            let response: reqwest::Response = http::Response::builder()
+                .status(code)
+                .body("")
+                .unwrap()
+                .into();
+            let error = anyhow::Error::new(response.error_for_status().unwrap_err())
+                .context("playback lookup failed");
+            assert_eq!(http_status(&error).unwrap().as_u16(), code);
+            assert_eq!(retryable(&error), code >= 500, "HTTP {code}");
+        }
+        assert!(!retryable(&anyhow::anyhow!(
+            "the track carries no playable asset"
+        )));
+        assert!(retryable(
+            &anyhow::Error::new(crate::stream::Interrupted).context("buffering failed")
+        ));
+    }
+
+    #[tokio::test]
+    async fn a_timed_out_load_is_retryable() {
+        let error = tokio::time::timeout(Duration::ZERO, std::future::pending::<()>())
+            .await
+            .unwrap_err();
+        assert!(retryable(&error.into()));
     }
 }

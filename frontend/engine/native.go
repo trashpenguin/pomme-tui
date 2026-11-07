@@ -147,6 +147,7 @@ func methodTimeout(method string) time.Duration {
 func (e *Engine) State() (State, error) {
 	var raw struct {
 		Authed, Playing, Initializing bool
+		Recovering                    bool
 		PosMs, DurMs                  uint64
 		Volume                        int
 		Shuffle                       bool
@@ -159,7 +160,7 @@ func (e *Engine) State() (State, error) {
 	if err := e.call("state", nil, &raw); err != nil {
 		return State{}, err
 	}
-	state := State{Authed: raw.Authed, Playing: raw.Playing, Initializing: raw.Initializing, Pos: time.Duration(raw.PosMs) * time.Millisecond, Dur: time.Duration(raw.DurMs) * time.Millisecond,
+	state := State{Authed: raw.Authed, Playing: raw.Playing, Initializing: raw.Initializing, Recovering: raw.Recovering, Pos: time.Duration(raw.PosMs) * time.Millisecond, Dur: time.Duration(raw.DurMs) * time.Millisecond,
 		Volume: raw.Volume, Shuffle: raw.Shuffle, Repeat: raw.Repeat, Queue: tracks(raw.Queue), QueuePos: raw.QueuePos, Err: raw.Err}
 	if raw.Now != nil {
 		state.Now = raw.Now.track()

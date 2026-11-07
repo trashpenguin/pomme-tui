@@ -69,6 +69,7 @@ pub struct WireState {
     pub authed: bool,
     pub playing: bool,
     pub initializing: bool,
+    pub recovering: bool,
     pub pos_ms: u64,
     pub dur_ms: u64,
     pub volume: u8,

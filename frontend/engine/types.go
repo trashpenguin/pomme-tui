@@ -10,6 +10,7 @@ type Track struct {
 }
 type State struct {
 	Authed, Playing, Initializing bool
+	Recovering                    bool
 	Pos, Dur                      time.Duration
 	Volume                        int
 	Shuffle                       bool

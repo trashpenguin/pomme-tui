@@ -7,6 +7,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Preserve streaming and decoding failures so interrupted Apple Music tracks are not treated as finished.
+- Detect audio output failures while playback is paused or waiting for a full audio queue to drain.
+
 ## [0.43.0] - 2026-10-13
 
 ### Added

@@ -1,4 +1,44 @@
-# Pomme TUI 0.2.0 candidate verification
+# Pomme TUI 0.2.6-rc.2 verification
+
+Checked on 7 November 2026 on a Windows development PC. This is a prerelease verification record; physical output-device and clean-machine checks below remain open. Earlier records are preserved as history.
+
+## Automated checks
+
+- `scripts/Test.ps1` passed: frontend Go tests and vet, 12 backend library tests, 18 controller tests, 19 stream/Apple stream tests, 6 engine tests, and 2 Apple playback error-classification tests. Total: **57 passing Rust tests**, plus the Go suite.
+- The playback tests cover interrupted HTTP bodies, retained decoder errors, stalled and progressing position lookups, retry backoff/limits, late clock events, pause/selection/clear/sign-out cancellation, failed-load Play, and normal queue endings.
+- New failure regressions were observed failing before their fixes and passing afterward. Independent code review approved the two final timing/lookup fixes with no remaining important findings.
+- Apple-only dependency and launcher checks passed. Ordinary tests require no Apple account; the broader upstream GUI/Spotify workspace is excluded from the playback-test workspace.
+- Optimized package checks passed for binary build-path privacy, installation to a path with spaces, corrupted-executable rejection, version, audio options, missing dependencies, fresh-profile startup, and shutdown.
+
+## Actual Apple Music playback
+
+The opt-in `TestNativeLiveRecoversInterruptedDownload` passed against the packaged 0.2.6-rc.2 backend in **24.53 seconds**. It used an isolated account copy and muted audio. A local TLS tunnel throttled and deliberately cut one real CDN connection without decrypting traffic.
+
+- The same song resumed automatically around its seven-second audible position, without a Play command triggering recovery.
+- The selected queue item and mute setting were preserved.
+- Pausing, seeking to 12 seconds, and reopening the paused player preserved position and pause state.
+- Seeking near the end started the next queued song, including a duplicate catalog ID, while remaining muted.
+
+Reproduce explicitly with a signed-in subscription and `AMTUI_NATIVE_BACKEND` pointing at the candidate backend:
+
+```powershell
+$env:NATIVE_RECOVERY_LIVE_TEST = '1'
+go -C frontend test ./engine -run '^TestNativeLiveRecoversInterruptedDownload$' -count=1 -v -timeout=3m
+```
+
+Set `SONORA_WIDEVINE_CDM` to the installed Chrome CDM if necessary. The test does not create a new sign-in or modify the normal saved queue.
+
+## Dependency review and release status
+
+Go `govulncheck` reported no vulnerabilities for this change. Rust advisory review was not rerun because `cargo-audit` was unavailable locally. The existing unused `Paced::drain` warning remains. Production lockfiles were not changed by the playback repair.
+
+Physical USB/Bluetooth disconnection/reconnection, default-device switching during playback and while paused, a clean Windows user/VM, and Rust dependency advisory review remain outstanding. Fresh Apple sign-in and physical media-key/game compatibility were not retested. Binaries are unsigned. No new memory benchmark, offline playback, lossless support, or seamless gapless playback is claimed.
+
+The release ships the Windows ZIP, matching complete source ZIP, and versioned archive checksum file together. `VERSION`, the release tag, notes, frontend version, and archive names identify **0.2.6-rc.2**.
+
+---
+
+# Historical: Pomme TUI 0.2.0 candidate verification
 
 Checked on 16 October 2026 on Windows. The public release remains 0.1.2 while this candidate is being verified.
 

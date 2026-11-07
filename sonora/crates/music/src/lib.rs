@@ -9,7 +9,7 @@ pub mod engine;
 pub mod equalizer;
 pub mod escape;
 pub mod kugou;
-#[cfg(test)]
+#[cfg(all(test, feature = "spotify"))]
 mod live_tests;
 pub mod local;
 pub mod lrclib;
@@ -388,6 +388,11 @@ pub enum PlaybackEvent {
     Unavailable {
         id: Option<String>,
     },
+    /// The stream failed before the song ended. `at` is the last audible position.
+    Interrupted {
+        id: Option<String>,
+        at: Duration,
+    },
     /// The provider turned the load down for now, as it does under a rate limit, so the same
     /// track may play after a wait.
     Throttled {
@@ -410,6 +415,7 @@ impl PlaybackEvent {
             | Self::Downloaded { id }
             | Self::Ended { id, .. }
             | Self::Unavailable { id, .. }
+            | Self::Interrupted { id, .. }
             | Self::Throttled { id } => id.as_deref(),
             _ => None,
         }

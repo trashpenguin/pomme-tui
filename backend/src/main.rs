@@ -161,6 +161,7 @@ async fn main() -> Result<()> {
     let (media_tx, mut media_rx) = tokio::sync::mpsc::unbounded_channel();
     let mut media: Option<media_keys::Bridge> = None;
     let mut media_tick = tokio::time::interval(Duration::from_millis(500));
+    let mut recovery_tick = tokio::time::interval(Duration::from_millis(100));
     let mut session = None;
     let mut control: Option<Controller> = None;
     let mut catalog = None;
@@ -186,6 +187,7 @@ async fn main() -> Result<()> {
             }
         }
         tokio::select! {
+            _=recovery_tick.tick()=>{if let Some(ctrl)=control.as_mut(){let _=ctrl.tick(std::time::Instant::now());}},
             _=media_tick.tick()=>{if let (Some(bridge),Some(ctrl))=(media.as_ref(),control.as_ref()){
                 let track=ctrl.queue.items.get(ctrl.queue.pos);
                 bridge.update(media_keys::Display{title:track.map_or(String::new(),|t|t.title.clone()),artist:track.map_or(String::new(),|t|t.artist.clone()),playing:ctrl.playing,enabled:ctrl.authed && track.is_some()});
@@ -226,7 +228,7 @@ async fn main() -> Result<()> {
                 if !ctrl.authed && method!="state" {write_response(Response::error(id,"Apple Music authentication expired; sign in again"))?;continue;}
                 if ["search","library","library_page","artist_page","discovery","discovery_item","save_item","save_playlist","play","queue_next","queue_later"].contains(&method){
                     if jobs.len()>=8{write_response(Response::error(id,"too many catalog requests; try again"))?;continue;}
-                    if method=="play"{ctrl.generation=ctrl.generation.wrapping_add(1);}
+                    if method=="play"{ctrl.begin_selection();}
                     let generation=ctrl.generation;let cat=catalog.as_ref().unwrap().clone();
                     let sequence=if method=="queue_next"||method=="queue_later"{queue_sequence+=1;queue_sequence}else{0};
                     let saved_queue=if method=="save_playlist" {ctrl.queue.items.clone()} else {Vec::new()};
@@ -270,13 +272,13 @@ async fn main() -> Result<()> {
                 })();
                 write_response(match result{Ok(value)=>Response::ok(id,value),Err(_)=>Response::error(id,"invalid request parameters or unavailable operation")})?;
             }
-            event=async{match control.as_mut(){Some(ctrl)=>ctrl.events.next().await,None=>std::future::pending().await}}=>{
+            event=async{match control.as_mut(){Some(ctrl) if ctrl.events_open=>ctrl.events.next().await,_=>std::future::pending().await}}=>{
                 match event{Some(event)=>{if let Some(ctrl)=control.as_mut(){
                     let declined=matches!(&event,music::PlaybackEvent::Unavailable{..}|music::PlaybackEvent::Refused|music::PlaybackEvent::Gated);
                     if ctrl.event(event).is_err(){ctrl.error="Audio output could not be restored".into();ctrl.playing=false;ctrl.initializing=false;}
                     if declined && ctrl.authed && auth_checks.is_empty(){let provider=provider.clone();let generation=ctrl.generation;
                         auth_checks.spawn(async move{(generation,tokio::time::timeout(Duration::from_secs(45),provider.restore()).await.unwrap_or_else(|_|Err(anyhow::anyhow!("account check timed out"))))});}
-                }},None=>break}
+                }},None=>{if let Some(ctrl)=control.as_mut(){ctrl.engine_closed(std::time::Instant::now());}}}
             }
             checked=auth_checks.join_next(),if !auth_checks.is_empty()=>{
                 if let Some(Ok((generation,result)))=checked {if let Some(ctrl)=control.as_mut(){if generation==ctrl.generation && ctrl.authed {

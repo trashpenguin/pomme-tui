@@ -21,7 +21,7 @@ use std::ops::Range;
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, Weak};
 use std::time::{Duration, Instant};
 
-use anyhow::{Result, bail};
+use anyhow::Result;
 use bytes::Bytes;
 use tokio::sync::watch;
 
@@ -38,6 +38,17 @@ const PATIENCE: Duration = Duration::from_secs(20);
 /// The most one track may spool. A long album side is tens of megabytes, so this is only a
 /// ceiling on what a wrong `Content-Length` or an endless body can cost.
 const CEILING: usize = 256 * 1024 * 1024;
+
+/// A download failed while buffering. Kept typed so playback can retry without parsing logs.
+#[derive(Debug)]
+pub(crate) struct Interrupted;
+
+impl std::fmt::Display for Interrupted {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("the audio stream was interrupted")
+    }
+}
+impl std::error::Error for Interrupted {}
 
 /// What a provider does to the body of one track: as it arrives, and before it is served.
 ///
@@ -368,7 +379,7 @@ impl<B: Body> Stream<B> {
             }
         }
         match self.failed() {
-            Some(failed) => bail!("the stream broke before playback could start: {failed}"),
+            Some(_) => Err(Interrupted.into()),
             None => Ok(()),
         }
     }
@@ -416,16 +427,30 @@ impl<B: Body> Stream<B> {
     /// until it answers something or the download ends. The third argument is whether the body
     /// is complete, so a question with no answer left can say so rather than wait.
     ///
-    /// This blocks whichever thread asks, bounded by the same patience a read has. It is for a
+    /// This blocks whichever thread asks, with the same inactivity limit as a read. Progress
+    /// extends the wait so a slow download can reach a saved playback position. It is for a
     /// question a reader would otherwise have to guess at, where guessing is worse than
     /// waiting: where in the file a position is, when the download has not reached it yet.
     pub fn awaiting<T>(
         &self,
+        read: impl FnMut(&mut B, &mut Spool, bool) -> Option<T>,
+    ) -> Option<T> {
+        self.awaiting_for(read, PATIENCE)
+    }
+
+    fn awaiting_for<T>(
+        &self,
         mut read: impl FnMut(&mut B, &mut Spool, bool) -> Option<T>,
+        patience: Duration,
     ) -> Option<T> {
         let mut state = self.shared.state.lock().ok()?;
-        let deadline = Instant::now() + PATIENCE;
+        let mut deadline = Instant::now() + patience;
+        let mut arrived = state.spool.len();
         loop {
+            if state.spool.len() > arrived {
+                arrived = state.spool.len();
+                deadline = Instant::now() + patience;
+            }
             let Buffered {
                 spool,
                 body,
@@ -440,11 +465,15 @@ impl<B: Body> Stream<B> {
             if complete || broken {
                 return None;
             }
-            let left = deadline.checked_duration_since(Instant::now())?;
-            let (held, timed_out) = self.shared.filled.wait_timeout(state, left).ok()?;
-            if timed_out.timed_out() {
+            let left = deadline.saturating_duration_since(Instant::now());
+            if left.is_zero() {
+                state.failed =
+                    Some("the download stopped while locating the playback position".into());
+                drop(state);
+                self.shared.filled.notify_all();
                 return None;
             }
+            let (held, _) = self.shared.filled.wait_timeout(state, left).ok()?;
             state = held;
         }
     }
@@ -608,6 +637,20 @@ impl<B: Body> Reader<B> {
 
 impl<B: Body> Read for Reader<B> {
     fn read(&mut self, out: &mut [u8]) -> io::Result<usize> {
+        let result = self.read_buffer(out);
+        if let Err(error) = &result {
+            // Decoders often translate I/O errors into iterator exhaustion. Retain the
+            // failure beside the download so that exhaustion cannot advance the queue.
+            if let Ok(mut state) = self.shared.state.lock() {
+                state.failed.get_or_insert_with(|| error.to_string());
+            }
+        }
+        result
+    }
+}
+
+impl<B: Body> Reader<B> {
+    fn read_buffer(&mut self, out: &mut [u8]) -> io::Result<usize> {
         if out.is_empty() {
             return Ok(0);
         }
@@ -782,6 +825,93 @@ mod tests {
         let mut reader = stream.reader();
         finish(&stream, Some("the connection dropped".to_owned()));
         assert!(reader.read(&mut [0u8; 8]).is_err());
+    }
+
+    #[test]
+    fn a_reader_failure_remains_visible_after_the_decoder_discards_it() {
+        struct Broken;
+        impl Body for Broken {
+            fn ready(&mut self, _: &mut Spool, _: Range<usize>) -> io::Result<()> {
+                Err(io::Error::other("sample decryption failed"))
+            }
+        }
+        let stream = stream(Broken, Some(4));
+        feed(&stream, &[1, 2, 3, 4]);
+        finish(&stream, None);
+        assert!(stream.reader().read(&mut [0; 4]).is_err());
+        assert!(
+            stream.failed().is_some(),
+            "decoder errors must not become normal track endings"
+        );
+    }
+
+    #[test]
+    fn a_stalled_position_lookup_remains_retryable() {
+        let stream = stream(Plain, Some(100));
+        let result = stream.awaiting_for(|_, _, _| None::<()>, Duration::from_millis(5));
+        assert!(result.is_none());
+        assert!(
+            stream.failed().is_some(),
+            "a position lookup timeout must not become Unavailable"
+        );
+    }
+
+    #[test]
+    fn position_lookup_waits_while_the_download_makes_progress() {
+        let stream = stream(Plain, Some(20));
+        let incoming = stream.clone();
+        let download = std::thread::spawn(move || {
+            for _ in 0..20 {
+                std::thread::sleep(Duration::from_millis(20));
+                feed(&incoming, &[1]);
+                incoming.shared.filled.notify_all();
+            }
+        });
+        let result = stream.awaiting_for(
+            |_, spool, _| (spool.len() == 20).then_some(20),
+            Duration::from_millis(300),
+        );
+        download.join().unwrap();
+        assert_eq!(
+            result,
+            Some(20),
+            "a slow active download must reach the saved position"
+        );
+        assert!(stream.failed().is_none());
+    }
+
+    #[tokio::test]
+    async fn a_dropped_http_body_keeps_buffered_audio_and_reports_the_interruption() {
+        use std::io::Write as _;
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = std::thread::spawn(move || {
+            let (mut connection, _) = listener.accept().unwrap();
+            let mut request = [0; 1024];
+            connection.read(&mut request).unwrap();
+            connection
+                .write_all(
+                    b"HTTP/1.1 200 OK\r\nContent-Length: 100000\r\nConnection: close\r\n\r\n1234",
+                )
+                .unwrap();
+        });
+        let response = reqwest::Client::builder()
+            .no_proxy()
+            .build()
+            .unwrap()
+            .get(format!("http://{address}/track"))
+            .send()
+            .await
+            .unwrap();
+        let stream = Stream::new(response, Plain);
+        tokio::time::timeout(Duration::from_secs(5), stream.finished())
+            .await
+            .unwrap();
+        let mut audio = Vec::new();
+        assert!(stream.reader().read_to_end(&mut audio).is_err());
+        assert_eq!(audio, b"1234");
+        assert!(stream.failed().is_some());
+        server.join().unwrap();
     }
 
     /// A body that accounts for bytes before serving them, the way a CENC index does.

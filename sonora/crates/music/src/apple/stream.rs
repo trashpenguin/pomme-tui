@@ -118,7 +118,9 @@ pub async fn resolve(
         .json(&body)
         .send()
         .await
-        .context("cannot reach apple web playback")?;
+        .context("cannot reach apple web playback")?
+        .error_for_status()
+        .context("apple web playback refused the track")?;
     let status = response.status();
     let answered: serde_json::Value = response
         .json()
@@ -341,7 +343,9 @@ async fn license(
         .json(&envelope)
         .send()
         .await
-        .context("cannot reach the apple license endpoint")?;
+        .context("cannot reach the apple license endpoint")?
+        .error_for_status()
+        .context("apple refused the license")?;
     let status = response.status();
     let answered: serde_json::Value = response
         .json()

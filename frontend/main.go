@@ -285,10 +285,11 @@ func closeServiceAsync(service *visualizer.Service) {
 }
 
 func (m model) audioInitializing() bool {
-	return (m.st.Initializing || m.initPending) && !m.initFailed
+	return (m.st.Initializing || m.initPending) && !m.initFailed && !m.st.Recovering
 }
 
 func (m *model) beginAudioInitialization() {
+	m.st.Recovering = false
 	m.initPending = true
 	m.initSeen = false
 	m.initReadyPolls = 0
@@ -955,7 +956,12 @@ func (m model) updateKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.focus = focusPlayer
 		}
 	case " ":
-		m.st.Playing = !m.st.Playing
+		if m.st.Recovering {
+			m.st.Playing, m.st.Recovering, m.st.Initializing = false, false, false
+			m.resetAudioInitialization()
+		} else {
+			m.st.Playing = !m.st.Playing
+		}
 		return m, doCmd(eng.PlayPause)
 	case "n":
 		return m, doCmd(eng.Next)
@@ -1597,6 +1603,8 @@ func (m model) transportPanel(w int) string {
 	}
 	if m.audioInitializing() {
 		l1 = m.audioInitializingLine()
+	} else if m.st.Recovering {
+		l1 += dim.Render(" · Reconnecting audio…")
 	} else if m.loading != "" {
 		sp := []rune("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏")
 		l1 = pink.Render(" "+string(sp[int(m.t*12)%len(sp)])+" ") +

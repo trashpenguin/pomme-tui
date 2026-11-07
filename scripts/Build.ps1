@@ -1,7 +1,8 @@
-param([string]$Version = '0.2.5', [switch]$SkipTests)
+param([string]$Version = '', [switch]$SkipTests)
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'Pomme.Helpers.ps1')
 $root = Split-Path $PSScriptRoot -Parent
+if (!$Version) { $Version = (Get-Content -LiteralPath (Join-Path $root 'VERSION') -Raw).Trim() }
 $dist = Join-Path $root 'dist'
 $release = Join-Path $dist "pomme-tui-$Version-windows-x64"
 function Invoke-Checked {
@@ -36,7 +37,8 @@ Invoke-Checked -Tool go -Arguments @('-C',(Join-Path $root 'frontend'),'build','
 Copy-Item -LiteralPath (Join-Path $root 'target\release\apple-native-engine.exe') -Destination $release
 & (Join-Path $PSScriptRoot 'Remove-NativeSourcePaths.ps1') -Path (Join-Path $release 'apple-native-engine.exe')
 foreach ($name in @('pomme.cmd','Run-Pomme.ps1','Pomme.Helpers.ps1','Start Pomme.cmd','Sign In.cmd','Install.ps1')) { Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination $release }
-foreach ($name in @('README.md','LICENSE','NOTICE.md','THIRD-PARTY.md')) { Copy-Item -LiteralPath (Join-Path $root $name) -Destination $release }
+foreach ($name in @('README.md','CHANGELOG.md','VERIFICATION.md','VERSION','LICENSE','NOTICE.md','THIRD-PARTY.md')) { Copy-Item -LiteralPath (Join-Path $root $name) -Destination $release }
+if (Test-Path -LiteralPath (Join-Path $root "releases/v$Version.md")) { Copy-Item -LiteralPath (Join-Path $root "releases/v$Version.md") -Destination (Join-Path $release 'RELEASE-NOTES.md') }
 Copy-Item -LiteralPath (Join-Path $root 'frontend\LICENSE') -Destination (Join-Path $release 'LICENSE-AMTUI.txt')
 New-Item -ItemType Directory -Force (Join-Path $release 'assets') | Out-Null
 foreach ($asset in @('pomme.svg','pomme.png','pomme.ico')) { Copy-Item (Join-Path $root ('assets\' + $asset)) (Join-Path $release 'assets') }
@@ -45,5 +47,8 @@ $sums = foreach ($name in @('pomme-ui.exe','apple-native-engine.exe','Pomme.exe'
 $sums | Set-Content -LiteralPath (Join-Path $release 'SHA256SUMS.txt') -Encoding ascii
 & (Join-Path $PSScriptRoot 'Test-Release.ps1') -ReleasePath $release
 Compress-Archive -LiteralPath $release -DestinationPath (Join-Path $dist "pomme-tui-$Version-windows-x64.zip")
+& (Join-Path $PSScriptRoot 'Package-Source.ps1') -Version $Version -Destination (Join-Path $dist "pomme-tui-$Version-source.zip")
+$archiveSums = foreach ($name in @("pomme-tui-$Version-windows-x64.zip", "pomme-tui-$Version-source.zip")) { '{0}  {1}' -f (Get-PommeSha256 -Path (Join-Path $dist $name)), $name }
+$archiveSums | Set-Content -LiteralPath (Join-Path $dist "SHA256SUMS-$Version.txt") -Encoding ascii
 Write-Host "Windows release: $release"
 exit 0

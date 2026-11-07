@@ -482,6 +482,11 @@ impl Media {
         self.0.finished().await;
     }
 
+    /// Retains a network or reader error even when the decoder reports only exhaustion.
+    pub fn failed(&self) -> bool {
+        self.0.failed().is_some()
+    }
+
     /// A cursor over the whole track.
     pub fn reader(&self) -> Reader<Cenc> {
         self.0.reader()

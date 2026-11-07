@@ -46,6 +46,30 @@ func TestRPCMatchesOutOfOrderResponses(t *testing.T) {
 	}
 	wg.Wait()
 }
+
+func TestStateReadsRecoveryWithoutChangingTrackPosition(t *testing.T) {
+	client, server := net.Pipe()
+	defer server.Close()
+	rpc := newRPC(client, client)
+	defer rpc.close()
+	go func() {
+		scanner := bufio.NewScanner(server)
+		if scanner.Scan() {
+			var request map[string]any
+			_ = json.Unmarshal(scanner.Bytes(), &request)
+			_ = json.NewEncoder(server).Encode(map[string]any{"id": request["id"], "result": map[string]any{
+				"authed": true, "playing": false, "initializing": true, "recovering": true,
+				"posMs": 12345, "durMs": 20000, "volume": 0,
+				"now": map[string]any{"id": "same-song", "kind": "song"},
+			}})
+		}
+	}()
+	eng := &Engine{rpc: rpc}
+	state, err := eng.State()
+	if err != nil || !state.Recovering || !state.Initializing || state.Playing || state.Pos != 12345*time.Millisecond || state.Now.ID != "same-song" {
+		t.Fatalf("recovery state was lost or changed: %+v; error=%v", state, err)
+	}
+}
 func TestRPCSlowSearchDoesNotBlockState(t *testing.T) {
 	client, server := net.Pipe()
 	defer server.Close()

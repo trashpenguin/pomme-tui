@@ -251,6 +251,8 @@ impl AppleClient {
     pub async fn connect(user_token: &str) -> Result<Self> {
         let http = reqwest::Client::builder()
             .user_agent(AGENT)
+            .connect_timeout(Duration::from_secs(10))
+            .read_timeout(Duration::from_secs(15))
             .build()
             .context("cannot build the apple http client")?;
         let bearer = auth::bearer(&http).await?;

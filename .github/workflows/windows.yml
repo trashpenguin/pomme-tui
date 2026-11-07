@@ -23,4 +23,6 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: pomme-tui-windows-x64
-          path: dist/*.zip
+          path: |
+            dist/*.zip
+            dist/SHA256SUMS-*.txt

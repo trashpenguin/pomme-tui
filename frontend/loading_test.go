@@ -40,6 +40,27 @@ func TestPlaybackKeysBlockedWhileAudioInitializes(t *testing.T) {
 	}
 }
 
+func TestRecoveryKeepsPauseAndSkipAvailable(t *testing.T) {
+	for _, key := range []tea.KeyMsg{
+		{Type: tea.KeySpace},
+		{Type: tea.KeyRunes, Runes: []rune("n")},
+		{Type: tea.KeyRunes, Runes: []rune("p")},
+	} {
+		m := model{phase: phaseReady, st: engine.State{Initializing: true, Recovering: true}}
+		_, cmd := m.updateKeys(key)
+		if cmd == nil {
+			t.Fatalf("recovery blocked %q", key.String())
+		}
+	}
+}
+
+func TestRecoveryStatusIsVisible(t *testing.T) {
+	m := model{w: 100, h: 30, phase: phaseReady, st: engine.State{Recovering: true}}
+	if !strings.Contains(m.View(), "Reconnecting audio") {
+		t.Fatal("recovery has no visible status")
+	}
+}
+
 func TestInitializingMessageIsRendered(t *testing.T) {
 	m := model{
 		w:     100,

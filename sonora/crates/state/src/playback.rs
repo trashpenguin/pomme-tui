@@ -2262,6 +2262,15 @@ impl Playback {
         }
         match event {
             BackendEvent::OutputChanged => self.restart_output(cx),
+            BackendEvent::Interrupted { at, .. } => {
+                self.position = at;
+                self.state = PlaybackState::Paused;
+                self.intent = Intent::Pause;
+                self.clock.reset(at, false);
+                self.resume_at = Some(at);
+                self.resume_ready = false;
+                cx.emit(PlaybackEvent::Paused);
+            }
             BackendEvent::Unavailable { .. }
             | BackendEvent::Throttled { .. }
             | BackendEvent::Refused

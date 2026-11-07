@@ -101,6 +101,16 @@ pub trait Fetch: Send + Sync + 'static {
         false
     }
 
+    /// Whether a failed fetch can be retried without changing the listener's account.
+    fn retryable(&self, _error: &anyhow::Error) -> bool {
+        false
+    }
+
+    /// Whether a decoder exhausted because its underlying stream failed.
+    fn failed(&self, _loaded: &Self::Loaded) -> bool {
+        false
+    }
+
     /// Resolves once the whole track has arrived, or its download has ended some other way.
     /// The engine reports it so the next track can be fetched without taking bandwidth from
     /// this one. The default answers at once, which suits a track that is already on disk.
@@ -365,6 +375,8 @@ async fn engine_loop<F: Fetch>(
     // the wait on the current track's download, so the state hears when all of it is in
     let mut watching: Option<tokio::task::AbortHandle> = None;
     let (downloads, mut downloaded) = unbounded_channel::<String>();
+    let mut written_open = true;
+    let mut joined_open = true;
 
     loop {
         tokio::select! {
@@ -510,9 +522,12 @@ async fn engine_loop<F: Fetch>(
                             awaited = None;
                             inflight = None;
                             announcing = None;
-                            let refusal = match fetch.gated(&error) {
-                                true => PlaybackEvent::Gated,
-                                false => PlaybackEvent::Unavailable { id: Some(id) },
+                            let refusal = if fetch.gated(&error) {
+                                PlaybackEvent::Gated
+                            } else if fetch.retryable(&error) {
+                                PlaybackEvent::Interrupted { id: Some(id), at: hold }
+                            } else {
+                                PlaybackEvent::Unavailable { id: Some(id) }
                             };
                             events.send(refusal).ok();
                         }
@@ -548,16 +563,17 @@ async fn engine_loop<F: Fetch>(
                 }
                 ahead = Some((id, loaded));
             }
-            heard = written.recv() => {
+            heard = written.recv(), if written_open => {
                 if heard.is_none() {
-                    break;
+                    written_open = false;
+                    continue;
                 }
                 if let Some(event) = announcing.take() {
                     events.send(event).ok();
                 }
             }
-            join = joined.recv() => {
-                let Some(join) = join else { break };
+            join = joined.recv(), if joined_open => {
+                let Some(join) = join else { joined_open = false; continue };
                 let before = current.clone();
                 settle(&mut current, join);
                 if current != before {
@@ -571,9 +587,10 @@ async fn engine_loop<F: Fetch>(
                 }
             }
             lost = gone.recv() => {
-                if lost.is_some() {
-                    events.send(PlaybackEvent::OutputChanged).ok();
-                }
+                // Queue/position channels may close first when the audio thread exits.
+                // Only this channel owns output recovery, including an unexpected exit.
+                let _ = lost;
+                events.send(PlaybackEvent::OutputChanged).ok();
                 return;
             }
         }
@@ -822,6 +839,12 @@ fn audio_loop<F: Fetch>(
     let mut reported_at = Instant::now();
 
     loop {
+        // A failed callback cannot drain a full queue. Check before any idle wait,
+        // including paused and end-of-track waits, so recovery never depends on a keypress.
+        if paced.output_changed() {
+            paced.disconnected();
+            return;
+        }
         // a track at another rate waits for the last one's tail to play out before the
         // output reopens under it
         let refitting = current
@@ -896,7 +919,7 @@ fn audio_loop<F: Fetch>(
                     queued = None;
                     joining = None;
                     written = 0;
-                    current = Playing::open(fetch.as_ref(), &id, loaded, at, 0, normalise);
+                    current = Playing::open(fetch.as_ref(), &id, loaded.clone(), at, 0, normalise);
                     if let Some(held) = &current
                         && paced.fit(held.rate).is_err()
                     {
@@ -913,9 +936,12 @@ fn audio_loop<F: Fetch>(
                         // the next write is the new track, so it is the one worth reporting
                         true => cue.arm(),
                         false => {
-                            events
-                                .send(PlaybackEvent::Unavailable { id: Some(id) })
-                                .ok();
+                            let event = if fetch.failed(&loaded) {
+                                PlaybackEvent::Interrupted { id: Some(id), at }
+                            } else {
+                                PlaybackEvent::Unavailable { id: Some(id) }
+                            };
+                            events.send(event).ok();
                         }
                     }
                 }
@@ -1029,6 +1055,23 @@ fn audio_loop<F: Fetch>(
 
         let buffer = paced.buffer(held.samples(CHUNK));
         let Some(samples) = held.take(CHUNK, buffer) else {
+            if fetch.failed(&held.loaded) {
+                let at = heard.as_ref().map_or(held.base, |mark| mark.at(&cue));
+                let id = held.id.clone();
+                // Freeze the audible clock before reporting it. This is not an Ended
+                // event: callers must retain the same queue item when retrying.
+                paced.pause();
+                current = None;
+                queued = None;
+                joining = None;
+                heard = None;
+                playing = false;
+                cue.clear();
+                events
+                    .send(PlaybackEvent::Interrupted { id: Some(id), at })
+                    .ok();
+                continue;
+            }
             // the decoder is done, but its last samples are still queued
             let Some(Playing {
                 id: ended, loaded, ..
