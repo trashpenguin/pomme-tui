@@ -59,7 +59,7 @@ var helpSections = []helpSection{
 		{"← →", "seek −5 / +5 sec"},
 		{"↑ ↓", "volume down / up"},
 		{"s", "shuffle toggle"},
-		{"r", "cycle repeat"},
+		{"r / R", "cycle repeat"},
 	}},
 	{"BROWSING", []helpEntry{
 		{"/", "search"},
@@ -118,7 +118,7 @@ var helpSections = []helpSection{
 	{"OTHER", []helpEntry{
 		{"?", "this help"},
 		{"a", "account menu"},
-		{"R", "reload engine"},
+		{"F5", "reload engine"},
 		{"q / ctrl+c", "quit"},
 	}},
 }

@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+## [0.2.6-rc.3] - 2026-11-07
+
+### Fixed
+
+- Reserve both `r` and `R` for cycling repeat in the player. Caps Lock or Shift can no longer turn the repeat key into an engine reload.
+- Move manual engine reload and failed-connection retry to **F5**. Update help, initialization warnings, the connection-failure screen, and README controls to use the same binding.
+- Add regressions proving repeat preserves engine/initialization state and F5 reloads; update the existing reload tests to use F5.
+
+The native playback backend is unchanged from 0.2.6-rc.2. Its automatic recovery fixes remain included. See [VERIFICATION.md](VERIFICATION.md) for validation and outstanding hardware/clean-Windows checks.
+
 ## [0.2.6-rc.2] - 2026-11-07
 
 ### Fixed
@@ -41,6 +51,7 @@ This is a Windows x64 prerelease. Physical USB/Bluetooth reconnection, clean Win
 - Library keyboard navigation and the clickable top search field.
 - Updated the bundled Rustls dependency to a patched version.
 
-[Unreleased]: https://github.com/trashpenguin/pomme-tui/compare/v0.2.6-rc.2...HEAD
+[Unreleased]: https://github.com/trashpenguin/pomme-tui/compare/v0.2.6-rc.3...HEAD
+[0.2.6-rc.3]: https://github.com/trashpenguin/pomme-tui/compare/v0.2.6-rc.2...v0.2.6-rc.3
 [0.2.6-rc.2]: https://github.com/trashpenguin/pomme-tui/compare/v0.2.5...v0.2.6-rc.2
 [0.2.5]: https://github.com/trashpenguin/pomme-tui/releases/tag/v0.2.5

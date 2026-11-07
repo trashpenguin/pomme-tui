@@ -1,3 +1,13 @@
+# Pomme TUI 0.2.6-rc.3 verification
+
+Checked on 7 November 2026. This frontend correction reserves `r`/`R` for repeat and uses F5 for engine reload and failed-connection retry. It updates help, initialization/failure hints, and README controls.
+
+The new regressions failed before the correction and passed afterward. The full Go suite and vet pass, including help layout and the existing reload tests updated to F5. The native backend is unchanged from the 0.2.6-rc.2 build whose verification is recorded below; its live playback-recovery results remain applicable.
+
+The release remains a prerelease with the physical-output, clean-Windows, and Rust advisory checks below still outstanding.
+
+---
+
 # Pomme TUI 0.2.6-rc.2 verification
 
 Checked on 7 November 2026 on a Windows development PC. This is a prerelease verification record; physical output-device and clean-machine checks below remain open. Earlier records are preserved as history.

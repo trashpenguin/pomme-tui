@@ -65,6 +65,23 @@ func TestHelpNoLongerAdvertisesCtrlL(t *testing.T) {
 	}
 }
 
+func TestHelpSeparatesRepeatFromReload(t *testing.T) {
+	var repeat, reload bool
+	for _, section := range helpSections {
+		for _, entry := range section.entries {
+			if entry.action == "cycle repeat" {
+				repeat = entry.keys == "r / R"
+			}
+			if entry.action == "reload engine" {
+				reload = entry.keys == "F5"
+			}
+		}
+	}
+	if !repeat || !reload {
+		t.Fatal("help must reserve r/R for repeat and F5 for reload")
+	}
+}
+
 func TestTransportHintsAreNeverCutInHalf(t *testing.T) {
 	// This is the defect the overlay exists for, and measuring the row width
 	// will not find it: transportPanel pads every row to the panel, so an

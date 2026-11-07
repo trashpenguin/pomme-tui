@@ -177,7 +177,7 @@ func TestReloadRestartsInitializationTimer(t *testing.T) {
 		initFailed: true,
 	}
 
-	next, cmd := m.updateKeys(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("R")})
+	next, cmd := m.updateKeys(tea.KeyMsg{Type: tea.KeyF5})
 	got := next.(model)
 	if cmd == nil {
 		t.Fatal("reload should remain available after an initialization failure")
@@ -342,7 +342,7 @@ func TestReloadClearsLocalInitializationState(t *testing.T) {
 		},
 	}
 
-	next, cmd := m.updateKeys(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("R")})
+	next, cmd := m.updateKeys(tea.KeyMsg{Type: tea.KeyF5})
 	if cmd == nil {
 		t.Fatal("reload should return a command")
 	}

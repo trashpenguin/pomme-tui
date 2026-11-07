@@ -25,7 +25,7 @@ import (
 
 const (
 	audioInitializingText     = "initializing Apple Music audio…"
-	audioInitializingWarning  = "Apple Music is still initializing · R reload"
+	audioInitializingWarning  = "Apple Music is still initializing · F5 reload"
 	visualizerUnavailableNote = "visualizer unavailable · simulated"
 	visualizerFrameFreshness  = 400 * time.Millisecond
 )
@@ -906,7 +906,7 @@ func (m model) recentVisible() bool { return m.layout().recH > 0 }
 
 func (m model) updateKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.phase != phaseReady {
-		if msg.String() == "R" && m.phase == phaseFail {
+		if msg.String() == "f5" && m.phase == phaseFail {
 			return m.reconnect("retrying connection...")
 		}
 		if s := msg.String(); s == "q" || s == "ctrl+c" {
@@ -969,7 +969,7 @@ func (m model) updateKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, doCmd(eng.Prev)
 	case "s":
 		return m, doCmd(eng.ToggleShuffle)
-	case "r":
+	case "r", "R":
 		return m, doCmd(eng.CycleRepeat)
 	case "?":
 		m.helpPage = 0
@@ -1039,7 +1039,7 @@ func (m model) updateKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		saveThemeName(next.name)
 		m.applyAutoTheme()
 		m.note, m.noteAt = "theme · "+next.name, m.t
-	case "R": // reload the web player when it wedges
+	case "f5": // Recreate the audio engine without sharing the repeat key.
 		m.note, m.noteAt = "reloading engine…", m.t
 		m.lyFor = ""
 		m.resetAudioInitialization()
@@ -1678,7 +1678,7 @@ func (m model) bootView() string {
 	var line string
 	if m.phase == phaseFail {
 		line = lipgloss.NewStyle().Foreground(accent).Render("✕ "+m.status) +
-			lipgloss.NewStyle().Foreground(fgFaint).Render("  ·  R retry · q quit")
+			lipgloss.NewStyle().Foreground(fgFaint).Render("  ·  F5 retry · q quit")
 	} else {
 		sp := []rune("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏")
 		line = lipgloss.NewStyle().Foreground(fgDim).
