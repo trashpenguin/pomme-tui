@@ -8,7 +8,7 @@ A Windows terminal player with native audio playback, search, a queue, synced ly
 
 ## Install and play
 
-1. Download and run **pomme-tui-0.2.6-rc.5-setup-x64.exe** from the [Windows prerelease](https://github.com/trashpenguin/pomme-tui/releases/tag/v0.2.6-rc.5).
+1. [Download the Windows setup](https://github.com/trashpenguin/pomme-tui/releases/download/v0.2.6-rc.5/pomme-tui-0.2.6-rc.5-setup-x64.exe) and run it. See the [prerelease notes](https://github.com/trashpenguin/pomme-tui/releases/tag/v0.2.6-rc.5) for validation and limits.
 2. Follow setup. It checks required components, downloads and installs missing ones from Google/Microsoft, and adds a Start menu shortcut. Allow Windows permission prompts when requested, then open Pomme and complete Apple Music sign-in.
 3. Press **/**, enter a song or artist, press **Enter** to search, then **Enter** to play.
 

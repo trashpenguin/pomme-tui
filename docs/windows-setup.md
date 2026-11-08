@@ -18,6 +18,8 @@ Silent setup supports Inno Setup options such as `/VERYSILENT /SUPPRESSMSGBOXES 
 
 ## Validation limits
 
+The final rc.5 setup passed exact-version install/readiness/uninstall checks locally and in [Windows CI](https://github.com/trashpenguin/pomme-tui/actions/runs/42472544346). Visual inspection confirmed that the complete prerequisite explanation is visible after fixing its text-area height. Later static inspection of the official signed Chrome MSI's nested archives confirmed the x64 Widevine DLL in Chrome 157.0.8103.39. This establishes payload contents, not first-time provisioning on a clean Windows machine.
+
 Prerequisite tests cover skip, untrusted signature rejection, installer failure, readiness recheck, separate restart IDs, retry persistence and clearing state after a new boot. The prototype setup passed an actual isolated install/version/readiness/uninstall check with existing prerequisites. The official Google/Microsoft downloads were obtained and their expected publisher signatures verified. The Chrome MSI wraps an embedded installer; direct MSI File-table inspection did not verify CDM contents. No host prerequisites were removed/reinstalled for testing.
 
 A clean Windows VM/PC was unavailable. First-time prerequisite installation and post-reboot provisioning therefore remain unverified. This is an unsigned prerelease, not a claim of completed clean-machine validation. An active Apple Music subscription, internet and personal Apple sign-in are still required. Setup does not add offline downloads, lossless audio or seamless gapless playback.
