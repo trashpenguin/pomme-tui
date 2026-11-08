@@ -92,6 +92,8 @@ begin
     'If needed, setup downloads Google Chrome (with Widevine), Microsoft Visual C++ x64 Runtime and Microsoft WebView2 directly from their publishers. Windows may ask for administrator permission.' + #13#10#13#10 +
     'Continuing authorizes these prerequisite installations under their publishers'' terms. Chrome is installed only if an installed Widevine module cannot be found.' + #13#10#13#10 +
     'An active Apple Music subscription and your own Apple sign-in are required. An internet connection is required. Setup never restarts Windows automatically.';
+  // CreateOutputMsgPage measured an empty caption; allow the complete explanation.
+  PrerequisitesPage.MsgLabel.Height := PrerequisitesPage.SurfaceHeight;
 end;
 
 function NextButtonClick(CurPageID: Integer): Boolean;
