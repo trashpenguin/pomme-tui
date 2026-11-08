@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+## [0.2.6-rc.5] - 2026-11-08
+
+### Added
+
+- A native Windows setup executable: prerequisite detection, official signed Google/Microsoft downloads for missing Chrome/Widevine, Visual C++ x64 Runtime and WebView2, Start menu/optional desktop shortcuts, and a Windows uninstaller.
+- Setup reuses installed prerequisites, verifies trusted publisher signatures before execution, rechecks each component, preserves pending restart state across retries, and leaves Windows restarts to the user. Ordinary player startup never installs software.
+- Installer regression checks and an isolated install/version/readiness/uninstall integration check. Keep the portable ZIP, matching source ZIP and checksums alongside setup.
+
+Includes the playback, keybinding and dependency security fixes from rc.2–rc.4. Your Apple Music subscription and sign-in remain required. Fresh-machine prerequisite provisioning remains unverified; this remains an unsigned prerelease. See [setup details](docs/windows-setup.md) and [verification](VERIFICATION.md).
+
 ## [0.2.6-rc.4] - 2026-11-08
 
 ### Security
@@ -61,7 +71,8 @@ This is a Windows x64 prerelease. Physical USB/Bluetooth reconnection, clean Win
 - Library keyboard navigation and the clickable top search field.
 - Updated the bundled Rustls dependency to a patched version.
 
-[Unreleased]: https://github.com/trashpenguin/pomme-tui/compare/v0.2.6-rc.4...HEAD
+[Unreleased]: https://github.com/trashpenguin/pomme-tui/compare/v0.2.6-rc.5...HEAD
+[0.2.6-rc.5]: https://github.com/trashpenguin/pomme-tui/compare/v0.2.6-rc.4...v0.2.6-rc.5
 [0.2.6-rc.4]: https://github.com/trashpenguin/pomme-tui/compare/v0.2.6-rc.3...v0.2.6-rc.4
 [0.2.6-rc.3]: https://github.com/trashpenguin/pomme-tui/compare/v0.2.6-rc.2...v0.2.6-rc.3
 [0.2.6-rc.2]: https://github.com/trashpenguin/pomme-tui/compare/v0.2.5...v0.2.6-rc.2

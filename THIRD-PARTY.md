@@ -1,5 +1,7 @@
 # Third-party notices
 
+The Windows setup executable is built with Inno Setup 7.1.1 (Jordan Russell and Martijn Laan); its license is in licenses/LICENSE-INNO-SETUP.txt. Missing prerequisites are downloaded from their official publishers and remain subject to Google/Microsoft terms. Pomme does not redistribute a separate Widevine CDM.
+
 Pomme's frontend preserves amtui's MIT license (LICENSE-AMTUI.txt in a Windows release, frontend/LICENSE in source). Go dependency notices are in licenses/go/; Go's license is licenses/LICENSE-GO.txt.
 
 The backend and modified Sonora components are GPL-3.0-or-later (LICENSE). Matching modified source must accompany each release. Use this project's source archive for the same release version, including backend/, sonora/, lockfiles, and build scripts. The pinned upstream Sonora commit alone does not contain Pomme's modifications.

@@ -8,15 +8,21 @@ A Windows terminal player with native audio playback, search, a queue, synced ly
 
 ## Install and play
 
-1. Download and extract the [Pomme TUI 0.2.6-rc.4 Windows x64 prerelease](https://github.com/trashpenguin/pomme-tui/releases/tag/v0.2.6-rc.4). For a local build, find it under `dist/`.
-2. Double-click **Pomme.exe** (or **Start Pomme.cmd**). If the current console is too small, Pomme opens a 140×45 Windows Terminal window so the lyrics cover is visible. On first launch, complete Apple Music sign-in in the temporary window.
+1. Download and run **pomme-tui-0.2.6-rc.5-setup-x64.exe** from the [Windows prerelease](https://github.com/trashpenguin/pomme-tui/releases/tag/v0.2.6-rc.5).
+2. Follow setup. It checks required components, downloads and installs missing ones from Google/Microsoft, and adds a Start menu shortcut. Allow Windows permission prompts when requested, then open Pomme and complete Apple Music sign-in.
 3. Press **/**, enter a song or artist, press **Enter** to search, then **Enter** to play.
 
-Requirements: Windows 10/11 x64, internet access, an Apple Music subscription, Google Chrome with its installed x64 Widevine module, Microsoft Visual C++ x64 Runtime, and WebView2 Evergreen Runtime for sign-in. Chrome does not run during playback. Widevine is loaded from your existing Chrome installation; Pomme does not include or download a CDM.
+You need Windows 10/11 x64, internet access and your own Apple Music subscription. **Setup handles missing Chrome/Widevine, Visual C++ x64 Runtime and WebView2 prerequisites.** Downloads are checked for a trusted Google/Microsoft signature before execution. If a component needs a restart, setup asks you to restart Windows yourself before opening Pomme.
+
+For portable use, extract the Windows ZIP and open **Pomme.exe**. Portable users provide the prerequisites themselves. Widevine comes from the official Chrome installation; it is not bundled separately in Pomme. Chrome does not run during playback. See [setup details](docs/windows-setup.md), including validation limits.
 
 If setup fails, run `pomme.cmd doctor` from the extracted folder. Install missing dependencies from their official sources: [Chrome](https://www.google.com/chrome/), [Microsoft Visual C++ x64 Runtime](https://aka.ms/vc14/vc_redist.x64.exe), [WebView2](https://developer.microsoft.com/microsoft-edge/webview2/).
 
-## Dependency security fixes in 0.2.6-rc.4
+## Easier Windows setup in 0.2.6-rc.5
+
+A single setup download installs Pomme, handles missing prerequisites, adds shortcuts and registers an uninstaller. Existing components are reused. Your account/profile is retained on uninstall. See [release notes](releases/v0.2.6-rc.5.md).
+
+## Dependency security fixes from 0.2.6-rc.4
 
 Updates the native backend's certificate-trust packages for CVE-2026-111943, Tokio for a Unix I/O-safety advisory, and a yanked locked package. The production Rust scan reports zero known vulnerabilities; one build-time macro maintenance warning remains. See the [dependency audit](docs/rust-dependency-audit.md). Update earlier candidates using the rebuilt rc.4 package.
 
@@ -38,7 +44,7 @@ The packaged backend passed an actual Apple Music test with a deliberately inter
 - **Library:** browse songs, albums, playlists, artists and favorites in dedicated pages. Recently played is shown in its own panel.
 - **Security:** the bundled Rustls dependency is updated to a patched version.
 
-The current Windows ZIP, matching source ZIP and SHA-256 checksums are attached to the [v0.2.6-rc.4 release](https://github.com/trashpenguin/pomme-tui/releases/tag/v0.2.6-rc.4).
+The current setup executable, portable Windows ZIP, matching source ZIP and SHA-256 checksums are attached to the [v0.2.6-rc.5 release](https://github.com/trashpenguin/pomme-tui/releases/tag/v0.2.6-rc.5).
 
 ### Use the `pomme` command anywhere
 
@@ -123,11 +129,11 @@ Advanced environment variables:
 - `POMME_OUTPUT`: preferred output endpoint; `-Output` overrides it.
 - `GOMEMLIMIT`: Go runtime soft memory limit; defaults to `64MiB`.
 
-To uninstall, remove the program directory and its entry from your user PATH. To erase the session as well, sign out first or separately remove the PommeTUI user-data folder. The program does not erase user data when its files are removed.
+For a setup installation, uninstall Pomme TUI through Windows Settings → Apps. Portable users remove the program directory and any manually added user PATH entry. To erase the session as well, sign out first or separately remove the PommeTUI user-data folder. Uninstall keeps your profile and shared prerequisite installations.
 
 ## Scope and limitations
 
-This is the **0.2.6-rc.4 Windows prerelease**. Automated UI, backend, installer and release-package checks and muted live Apple Music recovery pass; a clean Windows VM and clean-machine playback have not been verified. Search returns at most 50 items per category. The initial search overview remains limited. Queues are capped at 1,000 catalog songs. Locally uploaded songs without catalog encodes, offline downloads, lossless, and seamless gapless playback are not supported.
+This is the **0.2.6-rc.5 Windows prerelease**. Automated UI, backend, installer and release-package checks and muted live Apple Music recovery pass; a clean Windows VM and clean-machine playback have not been verified. Search returns at most 50 items per category. The initial search overview remains limited. Queues are capped at 1,000 catalog songs. Locally uploaded songs without catalog encodes, offline downloads, lossless, and seamless gapless playback are not supported.
 
 Native playback still uses a separate Widevine helper. A prior full-interface snapshot measured roughly 236 MiB combined working set; this is a snapshot, not a memory guarantee. The Go soft limit does not cap total app memory. Subscription/authentication and Apple's service behavior may affect availability.
 
@@ -139,7 +145,7 @@ Install Go 1.26, Rust 1.98.1, and Visual Studio 2022 Build Tools with Desktop de
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\Build.ps1
 ```
 
-The build reads `VERSION`, runs Go tests/vet, Rust library/controller/playback tests and launcher checks, and creates the Windows ZIP, matching source ZIP, and `SHA256SUMS-0.2.6-rc.4.txt` under `dist/`. Production dependencies use `backend/Cargo.lock`; the isolated playback-test workspace adds test-only dependencies without changing it. Do not commit `dist/`, `target/`, credentials, or local profiles. See [CONTRIBUTING.md](CONTRIBUTING.md) and [RELEASE-CHECKLIST.md](RELEASE-CHECKLIST.md).
+The build reads `VERSION`, runs Go tests/vet, Rust library/controller/playback tests and launcher checks, and creates the setup executable, Windows ZIP, matching source ZIP, and `SHA256SUMS-0.2.6-rc.5.txt` under `dist/`. Production dependencies use `backend/Cargo.lock`; the isolated playback-test workspace adds test-only dependencies without changing it. The pinned Inno Setup 7.1.1 compiler is downloaded, hash/publisher verified and extracted in portable mode under `target/` for setup builds. Do not commit `dist/`, `target/`, credentials, or local profiles. See [CONTRIBUTING.md](CONTRIBUTING.md) and [RELEASE-CHECKLIST.md](RELEASE-CHECKLIST.md).
 
 ## Credits and licenses
 

@@ -1,6 +1,6 @@
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
-foreach ($step in @('go-test','go-vet','rust-test','controller-test','playback-test','apple-only','launcher-test')) {
+foreach ($step in @('go-test','go-vet','rust-test','controller-test','playback-test','apple-only','launcher-test','setup-test')) {
     switch ($step) {
         'go-test' { & go -C (Join-Path $root 'frontend') test ./... }
         'go-vet' { & go -C (Join-Path $root 'frontend') vet ./... }
@@ -9,6 +9,7 @@ foreach ($step in @('go-test','go-vet','rust-test','controller-test','playback-t
         'playback-test' { & (Join-Path $PSScriptRoot 'Test-Playback.ps1') }
         'apple-only' { & (Join-Path $PSScriptRoot 'Test-AppleOnly.ps1') }
         'launcher-test' { & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'Test-Launcher.ps1') }
+        'setup-test' { & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'Test-Setup.ps1') }
     }
     if ($LASTEXITCODE -ne 0) { throw "$step failed" }
 }

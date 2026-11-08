@@ -48,7 +48,8 @@ $sums | Set-Content -LiteralPath (Join-Path $release 'SHA256SUMS.txt') -Encoding
 & (Join-Path $PSScriptRoot 'Test-Release.ps1') -ReleasePath $release
 Compress-Archive -LiteralPath $release -DestinationPath (Join-Path $dist "pomme-tui-$Version-windows-x64.zip")
 & (Join-Path $PSScriptRoot 'Package-Source.ps1') -Version $Version -Destination (Join-Path $dist "pomme-tui-$Version-source.zip")
-$archiveSums = foreach ($name in @("pomme-tui-$Version-windows-x64.zip", "pomme-tui-$Version-source.zip")) { '{0}  {1}' -f (Get-PommeSha256 -Path (Join-Path $dist $name)), $name }
+& (Join-Path $PSScriptRoot 'Build-Setup.ps1') -ReleasePath $release -Version $Version
+$archiveSums = foreach ($name in @("pomme-tui-$Version-windows-x64.zip", "pomme-tui-$Version-source.zip", "pomme-tui-$Version-setup-x64.exe")) { '{0}  {1}' -f (Get-PommeSha256 -Path (Join-Path $dist $name)), $name }
 $archiveSums | Set-Content -LiteralPath (Join-Path $dist "SHA256SUMS-$Version.txt") -Encoding ascii
 Write-Host "Windows release: $release"
 exit 0

@@ -25,4 +25,5 @@ jobs:
           name: pomme-tui-windows-x64
           path: |
             dist/*.zip
+            dist/*-setup-x64.exe
             dist/SHA256SUMS-*.txt

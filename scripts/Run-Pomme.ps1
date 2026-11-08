@@ -29,25 +29,18 @@ try {
     }
     # Deliberately replace the prototype's inherited Wave Link setting.
     $env:APPLE_TERMINAL_OUTPUT = if ($DefaultOutput) { '' } elseif ($Output) { $Output } else { $env:POMME_OUTPUT }
-    $roots = @(
-        (Join-Path $env:LOCALAPPDATA 'Google\Chrome\Application'),
-        (Join-Path $env:LOCALAPPDATA 'Google\Chrome\User Data\WidevineCdm'),
-        (Join-Path $env:ProgramFiles 'Google\Chrome\Application')
-    )
-    if (${env:ProgramFiles(x86)}) { $roots += Join-Path ${env:ProgramFiles(x86)} 'Google\Chrome\Application' }
-    $cdm = Find-PommeCdm -Override $env:SONORA_WIDEVINE_CDM -Roots $roots
-    $runtimeRoot = Join-Path $env:windir 'System32'
-    $missingRuntime = @('msvcp140.dll','vcruntime140.dll','vcruntime140_1.dll') | Where-Object { !(Test-Path -LiteralPath (Join-Path $runtimeRoot $_)) }
+    $cdm = Find-PommeCdm -Override $env:SONORA_WIDEVINE_CDM -Roots (Get-PommeCdmRoots)
+    $runtime = Test-PommeVCRuntime
     $webview = Test-PommeWebView
     if ($Command -eq 'doctor') {
         Write-Host "Pomme data: $env:POMME_DATA_DIR"
         Write-Host "Audio: $(if ($env:APPLE_TERMINAL_OUTPUT) { $env:APPLE_TERMINAL_OUTPUT } else { 'Windows default' })"
         Write-Host "Widevine found: $([bool]$cdm)"
-        Write-Host "Visual C++ runtime found: $($missingRuntime.Count -eq 0)"
+        Write-Host "Visual C++ runtime found: $runtime"
         Write-Host "WebView2 runtime found: $webview"
     }
     if (!$cdm) { throw 'Widevine was not found. Install Google Chrome for Windows, or set SONORA_WIDEVINE_CDM to your installed x64 CDM. See README.md.' }
-    if ($missingRuntime.Count) { throw 'Install Microsoft Visual C++ Redistributable (x64): https://aka.ms/vc14/vc_redist.x64.exe' }
+    if (!$runtime) { throw 'Install Microsoft Visual C++ Redistributable (x64): https://aka.ms/vc14/vc_redist.x64.exe' }
     if (!$webview) { throw 'Install Microsoft Edge WebView2 Evergreen Runtime: https://developer.microsoft.com/microsoft-edge/webview2/' }
     $env:SONORA_WIDEVINE_CDM = $cdm
     if ($Command -eq 'doctor') { exit 0 }

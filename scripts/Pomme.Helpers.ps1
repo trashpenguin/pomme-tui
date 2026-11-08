@@ -35,3 +35,20 @@ function Test-PommeWebView {
     }
     return $false
 }
+
+function Get-PommeCdmRoots {
+    $roots = @(
+        (Join-Path $env:LOCALAPPDATA 'Google\Chrome\Application'),
+        (Join-Path $env:LOCALAPPDATA 'Google\Chrome\User Data\WidevineCdm'),
+        (Join-Path $env:ProgramFiles 'Google\Chrome\Application')
+    )
+    if (${env:ProgramFiles(x86)}) { $roots += Join-Path ${env:ProgramFiles(x86)} 'Google\Chrome\Application' }
+    return $roots
+}
+
+function Test-PommeVCRuntime {
+    $missing = @('msvcp140.dll','vcruntime140.dll','vcruntime140_1.dll') | Where-Object {
+        !(Test-Path -LiteralPath (Join-Path $env:windir "System32\$_") -PathType Leaf)
+    }
+    return @($missing).Count -eq 0
+}

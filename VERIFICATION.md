@@ -1,3 +1,18 @@
+# Pomme TUI 0.2.6-rc.5 verification
+
+## Windows setup — 8 November 2026
+
+Adds a native x64 per-user Inno Setup wizard alongside the portable ZIP. Setup detects missing prerequisites, downloads official vendor installers, verifies Authenticode status/publisher, installs and rechecks them, then installs Pomme with shortcuts and a registered uninstaller. Restart requirements persist across retries and clear after a new boot; setup does not reboot Windows or offer immediate launch while a restart is pending.
+
+- New prerequisite regressions failed before implementation/fixes and now pass: no downloads on a ready machine, unsigned-file rejection, installer failure propagation, readiness recheck, independent missing components after another requested restart, persistent separate component IDs and boot-based clearing.
+- An actual prototype setup executable with the rc.4 payload passed isolated installation to a path with spaces, version/doctor, uninstall registration and uninstall cleanup on this Windows PC with existing prerequisites. No normal shortcuts or uninstall entry were replaced. A temporary helper extraction mismatch was fixed and the executable test repeated successfully.
+- Downloaded the actual Microsoft Visual C++ x64 installer, WebView2 bootstrapper and Google Chrome x64 MSI. Each passed the expected Microsoft Corporation/Google LLC signature check. These prerequisites were not reinstalled on the host. Direct MSI File-table inspection did not verify CDM contents because Chrome's MSI wraps an embedded installer.
+- Independent review found restart/failure-handling issues; fixes were reviewed with no remaining important findings. Final rc.5 packaging, exact-version integration and hosted CI are verified separately before publication; final artifact results are recorded in the GitHub release notes.
+
+Clean-machine prerequisite installation/post-reboot readiness remains unverified because no VM/other PC was available. Existing rc.4 playback/security results below apply to unchanged native/Go player code; the launcher only shares its existing prerequisite checks with setup. USB/Bluetooth, extended playback soak and signing remain open. This remains a prerelease.
+
+---
+
 # Pomme TUI 0.2.6-rc.4 verification
 
 ## Production Rust dependency review — 8 November 2026

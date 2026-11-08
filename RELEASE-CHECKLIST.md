@@ -5,7 +5,7 @@
 3. Extract the generated ZIP elsewhere. Run `pomme.cmd version`, `pomme.cmd doctor`, and test installation to a temporary folder. Check output selection, sign-in, search, playback, lyrics, recovery, and quitting.
 4. Test a clean Windows user/VM without developer tools. Confirm missing Chrome/CDM, WebView2, and Visual C++ runtime messages are useful.
 5. Review the exact Git-tracked files for local paths, credentials, logs, profiles, binaries, or proprietary modules. Review archive entries, not just `.gitignore`.
-6. Wait for the exact commit's Windows CI result. Create a draft release targeting that commit, attach the Windows/source ZIPs and versioned archive checksums, verify the uploaded bytes, then publish with the appropriate prerelease status. Preserve licenses and attribution. Consider Windows code signing before broader distribution.
+6. Wait for the exact commit's Windows CI result. Create a draft release targeting that commit, attach the setup executable, Windows/source ZIPs and versioned archive checksums, verify the uploaded bytes, then publish with the appropriate prerelease status. Check the actual setup install/uninstall flow and separately verify first-time prerequisite installation on a clean machine; an integration-test skip is not a pass. Preserve licenses and attribution. Consider Windows code signing before broader distribution.
 7. Report platform and playback limitations accurately. Do not claim clean-machine validation or lower memory without measuring it.
 
 Playback reliability gate:
