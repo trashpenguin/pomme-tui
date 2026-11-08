@@ -13,6 +13,8 @@ The Windows workflow runs ordinary tests and packages unsigned artifacts. It doe
 
 ## Publish with GitHub CLI
 
+Use short, version-first release titles: `v<VERSION> — <short description>`, for example `v0.2.6-rc.5 — Windows setup`. Omit the repeated product name so GitHub's release navigation stays readable. Use `Windows preview` for historical Windows prereleases without a specific feature title. A title cleanup does not change version numbers, tags or release status.
+
 For the current candidate, publish **v0.2.6-rc.5 as a prerelease** from its verified commit. Create a draft, upload all four assets, compare their checksums, and publish after validation. Use `--notes-file releases/v0.2.6-rc.5.md` to preserve the exact Markdown notes and `--target <commit>` to bind the tag to the reviewed source.
 
 Required release assets:
