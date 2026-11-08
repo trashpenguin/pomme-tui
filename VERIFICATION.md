@@ -8,7 +8,15 @@ Updated `rustls-webpki` to 0.103.16, `webpki-roots` and `webpki-root-certs` to 1
 
 The full `scripts/Test.ps1` pass succeeded after updating the lockfile: frontend Go tests/vet, all 57 Rust library/controller/playback tests, Apple-only dependency checks and launcher checks. Existing dead-code/profile warnings remain; no test failed.
 
-The earlier rc.3 executable is not patched by changing source; use the rebuilt rc.4 package. Package/live checks and hosted CI are checked separately before publication, with final artifact results recorded in the GitHub release notes.
+The earlier rc.3 executable is not patched by changing source; use the rebuilt rc.4 package.
+
+## Published rc.4 artifact checks — 8 November 2026
+
+- [Windows CI run 42461236785](https://github.com/trashpenguin/pomme-tui/actions/runs/42461236785) passed for release commit `dd5be58ff9561704a5f9af67959a7778047a4ee3`, including all 57 Rust tests, Go checks, optimized build, package checks and artifact upload.
+- The exact locally packaged backend passed the muted live Apple Music interrupted-download recovery test in 20.56 seconds: same-song recovery around seven seconds, pause/seek/reopen preservation and the next queued song after a near-end seek.
+- Optimized binary privacy, installation with spaces, corrupted-executable rejection, version, audio options, dependency-error handling, fresh-profile startup and shutdown checks passed locally and on CI.
+- The matching source ZIP contains 903 entries, records the release commit, and has the same production lockfile and version as that commit. No target/dist/credentials/session entries were present.
+- The [published rc.4 prerelease](https://github.com/trashpenguin/pomme-tui/releases/tag/v0.2.6-rc.4) has its Windows ZIP, matching source ZIP and versioned SHA-256 file. All three were downloaded and compared byte-for-byte after draft upload and again after publication. The public tag resolves to the verified release commit. rc.3's public notes now point users to the security update; older binaries were not replaced.
 
 Clean Windows/first-time prerequisite installation, USB/Bluetooth reconnection, subjective audio/gap checks, extended playback soak testing and signing remain outstanding. The rc.3 isolated sign-in and Realtek results below are historical; the physical tests were not repeated for this dependency-only update. This remains a prerelease.
 
