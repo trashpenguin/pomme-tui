@@ -1,5 +1,21 @@
 # Pomme TUI 0.2.6-rc.3 verification
 
+## Realtek wired-output checks — 8 November 2026
+
+Tested the public rc.3 packaged backend with the isolated fresh-sign-in profile and volume zero. The user physically disconnected/reconnected Realtek wired headphones. This pass verifies playback state and audible-clock advancement rather than a subjective listening assessment.
+
+- Changing Windows default output from headphones to Realtek speakers during playback left the same song advancing without a manual Play command or reported playback error.
+- Changing back to headphones while paused preserved the paused position at 93,732 ms and volume zero.
+- Unplugging the headphones during playback caused Windows to select the Realtek speakers; the same muted song continued advancing automatically. Windows visually confirmed the unplugged endpoint and default-speaker state.
+- The first reinsertion was not immediately detected. After reseating, Windows detected the headphones as default again, but playback had already been paused; immediate reconnection while actively playing remains unverified.
+- Repeated unplug/reconnect while paused at 10,000 ms preserved pause, exact position, and volume zero. Windows visually confirmed both endpoint states. Play afterward resumed the same song beyond 21 seconds.
+- Repeated the complete unplug/reconnect cycle while actively playing, with Windows endpoint state recorded beside playback samples. Captured 85 unplugged-state samples (DeviceState 8) and 394 active-state samples (DeviceState 1). Every sample in that cycle reported playing, volume zero, and no playback error; position advanced from 10,000 through 66,390 ms, including after endpoint return, without another Play command. This resolves the initially inconclusive active-return transition.
+- Headphones were restored as Windows' default output and the test backend was paused and shut down.
+
+A scratch monitoring-script file-sharing error interrupted the first observation run. Captured samples were retained, the writer was corrected, and the paused unplug/reconnect/resume cycle was repeated successfully. Pomme reported no playback error in the sampled phases.
+
+Realtek wired-output default switching and physical unplug/reconnect checks passed on this setup, both during playback and while paused. USB/Bluetooth hardware and subjective audio/gap-duration checks remain outstanding. No production code or release binary changed for this validation.
+
 ## Isolated installation and fresh sign-in — 8 November 2026
 
 The user confirmed that no clean VM or separate Windows PC was available, so this pass used a newly installed copy and empty Pomme profile on the existing Windows 11 Home PC. This does **not** establish clean-Windows compatibility.
