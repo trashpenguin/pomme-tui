@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+## [0.2.6-rc.4] - 2026-11-08
+
+### Security
+
+- Update `rustls-webpki` to 0.103.16, `webpki-roots` and `webpki-root-certs` to 1.0.10 for the emSign certificate-distrust advisories RUSTSEC-2026-0382, RUSTSEC-2026-0381 and RUSTSEC-2026-0383 (CVE-2026-111943).
+- Update Tokio to 1.53.3 for RUSTSEC-2026-0386, affecting its Unix `AsyncFd` API. Update the locked, yanked `chacha20` 0.10.1 package to 0.10.2.
+- The full production lockfile scan now reports zero known vulnerabilities, no unsoundness warnings and no yanked packages. The unmaintained build-time `paste` dependency remains documented in [the audit](docs/rust-dependency-audit.md).
+
+Includes the playback recovery and repeat/F5 corrections from rc.2/rc.3. This remains an unsigned Windows x64 prerelease; see [verification](VERIFICATION.md) for completed checks and outstanding release gates.
+
 ## [0.2.6-rc.3] - 2026-11-07
 
 ### Fixed
@@ -51,7 +61,8 @@ This is a Windows x64 prerelease. Physical USB/Bluetooth reconnection, clean Win
 - Library keyboard navigation and the clickable top search field.
 - Updated the bundled Rustls dependency to a patched version.
 
-[Unreleased]: https://github.com/trashpenguin/pomme-tui/compare/v0.2.6-rc.3...HEAD
+[Unreleased]: https://github.com/trashpenguin/pomme-tui/compare/v0.2.6-rc.4...HEAD
+[0.2.6-rc.4]: https://github.com/trashpenguin/pomme-tui/compare/v0.2.6-rc.3...v0.2.6-rc.4
 [0.2.6-rc.3]: https://github.com/trashpenguin/pomme-tui/compare/v0.2.6-rc.2...v0.2.6-rc.3
 [0.2.6-rc.2]: https://github.com/trashpenguin/pomme-tui/compare/v0.2.5...v0.2.6-rc.2
 [0.2.5]: https://github.com/trashpenguin/pomme-tui/releases/tag/v0.2.5

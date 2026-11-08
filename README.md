@@ -8,7 +8,7 @@ A Windows terminal player with native audio playback, search, a queue, synced ly
 
 ## Install and play
 
-1. Download and extract the [Pomme TUI 0.2.6-rc.3 Windows x64 prerelease](https://github.com/trashpenguin/pomme-tui/releases/tag/v0.2.6-rc.3). For a local build, find it under `dist/`.
+1. Download and extract the [Pomme TUI 0.2.6-rc.4 Windows x64 prerelease](https://github.com/trashpenguin/pomme-tui/releases/tag/v0.2.6-rc.4). For a local build, find it under `dist/`.
 2. Double-click **Pomme.exe** (or **Start Pomme.cmd**). If the current console is too small, Pomme opens a 140×45 Windows Terminal window so the lyrics cover is visible. On first launch, complete Apple Music sign-in in the temporary window.
 3. Press **/**, enter a song or artist, press **Enter** to search, then **Enter** to play.
 
@@ -16,15 +16,19 @@ Requirements: Windows 10/11 x64, internet access, an Apple Music subscription, G
 
 If setup fails, run `pomme.cmd doctor` from the extracted folder. Install missing dependencies from their official sources: [Chrome](https://www.google.com/chrome/), [Microsoft Visual C++ x64 Runtime](https://aka.ms/vc14/vc_redist.x64.exe), [WebView2](https://developer.microsoft.com/microsoft-edge/webview2/).
 
-## What's new in 0.2.6-rc.3
+## Dependency security fixes in 0.2.6-rc.4
 
-Both **r** and **R** cycle repeat in the player. **F5** reloads the audio engine or retries a failed connection. Shift/Caps Lock can no longer turn the repeat key into a reload. The help screen and failure/initialization hints use the same shortcuts. See [release notes](releases/v0.2.6-rc.3.md).
+Updates the native backend's certificate-trust packages for CVE-2026-111943, Tokio for a Unix I/O-safety advisory, and a yanked locked package. The production Rust scan reports zero known vulnerabilities; one build-time macro maintenance warning remains. See the [dependency audit](docs/rust-dependency-audit.md). Update earlier candidates using the rebuilt rc.4 package.
+
+## Repeat key correction from 0.2.6-rc.3
+
+Both **r** and **R** cycle repeat in the player. **F5** reloads the audio engine or retries a failed connection. Shift/Caps Lock can no longer turn the repeat key into a reload. The help screen and failure/initialization hints use the same shortcuts. See [release notes](releases/v0.2.6-rc.4.md).
 
 ## Playback recovery in 0.2.6-rc.2
 
 Interrupted downloads resume the same song at its last audible position, with up to three automatic attempts. The interface shows **Reconnecting audio** and keeps pause/skip available during recovery. Failed loads can be retried with Play. Late events cannot rewind the saved position, and slow downloads can continue progressing while locating it. Audio-output changes are detected even while the audio queue is full or paused.
 
-The packaged backend passed an actual Apple Music test with a deliberately interrupted download, automatic recovery, paused seek/reload, and the next queued song after a near-end seek. All 57 Rust tests and frontend Go tests/vet passed locally. Physical USB/Bluetooth reconnection, Windows default-device switching, clean Windows user/VM testing, and Rust advisory review remain outstanding. See [release notes](releases/v0.2.6-rc.2.md), [changelog](CHANGELOG.md), and [verification](VERIFICATION.md).
+The packaged backend passed an actual Apple Music test with a deliberately interrupted download, automatic recovery, paused seek/reload, and the next queued song after a near-end seek. All 57 Rust tests and frontend Go tests/vet passed locally. Realtek wired-output switching/reconnection and isolated fresh sign-in passed on rc.3. Rust advisory review is recorded for rc.4. USB/Bluetooth reconnection, clean Windows/first-time prerequisite installation and extended playback soak checks remain outstanding. See [release notes](releases/v0.2.6-rc.2.md), [changelog](CHANGELOG.md), and [verification](VERIFICATION.md).
 
 ## What's new in 0.2.5
 
@@ -34,7 +38,7 @@ The packaged backend passed an actual Apple Music test with a deliberately inter
 - **Library:** browse songs, albums, playlists, artists and favorites in dedicated pages. Recently played is shown in its own panel.
 - **Security:** the bundled Rustls dependency is updated to a patched version.
 
-The current Windows ZIP, matching source ZIP and SHA-256 checksums are attached to the [v0.2.6-rc.3 release](https://github.com/trashpenguin/pomme-tui/releases/tag/v0.2.6-rc.3).
+The current Windows ZIP, matching source ZIP and SHA-256 checksums are attached to the [v0.2.6-rc.4 release](https://github.com/trashpenguin/pomme-tui/releases/tag/v0.2.6-rc.4).
 
 ### Use the `pomme` command anywhere
 
@@ -123,7 +127,7 @@ To uninstall, remove the program directory and its entry from your user PATH. To
 
 ## Scope and limitations
 
-This is the **0.2.6-rc.3 Windows prerelease**. Automated UI, backend, installer and release-package checks and muted live Apple Music recovery pass; a clean Windows VM and clean-machine playback have not been verified. Search returns at most 50 items per category. The initial search overview remains limited. Queues are capped at 1,000 catalog songs. Locally uploaded songs without catalog encodes, offline downloads, lossless, and seamless gapless playback are not supported.
+This is the **0.2.6-rc.4 Windows prerelease**. Automated UI, backend, installer and release-package checks and muted live Apple Music recovery pass; a clean Windows VM and clean-machine playback have not been verified. Search returns at most 50 items per category. The initial search overview remains limited. Queues are capped at 1,000 catalog songs. Locally uploaded songs without catalog encodes, offline downloads, lossless, and seamless gapless playback are not supported.
 
 Native playback still uses a separate Widevine helper. A prior full-interface snapshot measured roughly 236 MiB combined working set; this is a snapshot, not a memory guarantee. The Go soft limit does not cap total app memory. Subscription/authentication and Apple's service behavior may affect availability.
 
@@ -135,7 +139,7 @@ Install Go 1.26, Rust 1.98.1, and Visual Studio 2022 Build Tools with Desktop de
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\Build.ps1
 ```
 
-The build reads `VERSION`, runs Go tests/vet, Rust library/controller/playback tests and launcher checks, and creates the Windows ZIP, matching source ZIP, and `SHA256SUMS-0.2.6-rc.3.txt` under `dist/`. Production dependencies use `backend/Cargo.lock`; the isolated playback-test workspace adds test-only dependencies without changing it. Do not commit `dist/`, `target/`, credentials, or local profiles. See [CONTRIBUTING.md](CONTRIBUTING.md) and [RELEASE-CHECKLIST.md](RELEASE-CHECKLIST.md).
+The build reads `VERSION`, runs Go tests/vet, Rust library/controller/playback tests and launcher checks, and creates the Windows ZIP, matching source ZIP, and `SHA256SUMS-0.2.6-rc.4.txt` under `dist/`. Production dependencies use `backend/Cargo.lock`; the isolated playback-test workspace adds test-only dependencies without changing it. Do not commit `dist/`, `target/`, credentials, or local profiles. See [CONTRIBUTING.md](CONTRIBUTING.md) and [RELEASE-CHECKLIST.md](RELEASE-CHECKLIST.md).
 
 ## Credits and licenses
 

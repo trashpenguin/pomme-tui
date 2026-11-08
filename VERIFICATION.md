@@ -1,3 +1,19 @@
+# Pomme TUI 0.2.6-rc.4 verification
+
+## Production Rust dependency review — 8 November 2026
+
+Scanned the complete production `backend/Cargo.lock` with `cargo-audit` 0.22.2 against RustSec database commit `309392b18f6b17022f82c701f300433126901068`. The rc.3 lockfile reported three certificate-trust vulnerabilities (one shared CVE), one Tokio Unix I/O-safety warning and one yanked package.
+
+Updated `rustls-webpki` to 0.103.16, `webpki-roots` and `webpki-root-certs` to 1.0.10, Tokio to 1.53.3 and `chacha20` to 0.10.2. The patched 383-package lockfile scan exits 0 with **zero known vulnerabilities**, no unsoundness warnings and no yanked packages. The unmaintained compile-time `paste` macro remains explicitly documented; no advisory is suppressed. See [the audit](docs/rust-dependency-audit.md) for scope, advisory links and reproduction.
+
+The full `scripts/Test.ps1` pass succeeded after updating the lockfile: frontend Go tests/vet, all 57 Rust library/controller/playback tests, Apple-only dependency checks and launcher checks. Existing dead-code/profile warnings remain; no test failed.
+
+The earlier rc.3 executable is not patched by changing source; use the rebuilt rc.4 package. Package/live checks and hosted CI are checked separately before publication, with final artifact results recorded in the GitHub release notes.
+
+Clean Windows/first-time prerequisite installation, USB/Bluetooth reconnection, subjective audio/gap checks, extended playback soak testing and signing remain outstanding. The rc.3 isolated sign-in and Realtek results below are historical; the physical tests were not repeated for this dependency-only update. This remains a prerelease.
+
+---
+
 # Pomme TUI 0.2.6-rc.3 verification
 
 ## Realtek wired-output checks — 8 November 2026

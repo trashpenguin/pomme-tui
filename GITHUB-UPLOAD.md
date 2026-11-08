@@ -13,14 +13,14 @@ The Windows workflow runs ordinary tests and packages unsigned artifacts. It doe
 
 ## Publish with GitHub CLI
 
-For the current candidate, publish **v0.2.6-rc.3 as a prerelease** from its verified commit. Create a draft, upload all three assets, compare their checksums, and publish after validation. Use `--notes-file releases/v0.2.6-rc.3.md` to preserve the exact Markdown notes and `--target <commit>` to bind the tag to the reviewed source.
+For the current candidate, publish **v0.2.6-rc.4 as a prerelease** from its verified commit. Create a draft, upload all three assets, compare their checksums, and publish after validation. Use `--notes-file releases/v0.2.6-rc.4.md` to preserve the exact Markdown notes and `--target <commit>` to bind the tag to the reviewed source.
 
 Required release assets:
 
-- `pomme-tui-0.2.6-rc.3-windows-x64.zip`
-- `pomme-tui-0.2.6-rc.3-source.zip`
-- `SHA256SUMS-0.2.6-rc.3.txt`
+- `pomme-tui-0.2.6-rc.4-windows-x64.zip`
+- `pomme-tui-0.2.6-rc.4-source.zip`
+- `SHA256SUMS-0.2.6-rc.4.txt`
 
 Verify the public release flags, tag commit, asset names and bytes after publication. The source ZIP records its commit in `SOURCE-COMMIT.txt` and lists packaged source files in `SOURCE-MANIFEST.txt`. Do not reuse archives from another version or update an older release's binaries in place.
 
-This candidate retains open physical-output, clean-Windows, and Rust advisory checks documented in `VERIFICATION.md`. Preserve the prerelease status and those limits in public notes.
+This candidate retains open USB/Bluetooth, clean-Windows, first-time prerequisite and extended playback soak checks documented in `VERIFICATION.md`. Rust advisory review is complete with one explicit upstream maintenance warning. Preserve the prerelease status and those limits in public notes.
