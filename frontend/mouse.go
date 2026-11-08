@@ -77,8 +77,27 @@ func (m model) progressGeometry(w int) (x, width int) {
 }
 
 func (m model) updateMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
-	if m.phase != phaseReady || m.helpOpen || m.acctOpen {
+	if m.phase != phaseReady || m.acctOpen && !m.helpOpen {
 		return m, nil
+	}
+	if m.helpOpen {
+		if msg.Action == tea.MouseActionPress {
+			if msg.Button == tea.MouseButtonWheelDown {
+				m.helpPage = min(m.helpPage+1, m.helpPageCount()-1)
+			} else if msg.Button == tea.MouseButtonWheelUp {
+				m.helpPage = max(0, m.helpPage-1)
+			}
+		}
+		return m, nil
+	}
+	if m.artistBrowser.open {
+		return m.updateArtistMouse(msg)
+	}
+	if m.statsOpen {
+		return m.updateStatsMouse(msg)
+	}
+	if m.searchOpen {
+		return m.updateSearchMouse(msg)
 	}
 	if msg.Button == tea.MouseButtonLeft && msg.Action == tea.MouseActionPress && msg.Y < 3 {
 		m.searchOpen, m.sInput = true, true

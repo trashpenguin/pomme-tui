@@ -123,6 +123,7 @@ type model struct {
 	libraryPaged     bool
 	librarySelection int
 	mini             bool
+	miniPrevFocus    int
 	sleepUntil       time.Time
 	sleepChoice      int
 	searchHistory    []string
@@ -192,7 +193,7 @@ type model struct {
 	orbKickBase float64     // running average the kick is measured against
 	wv          wave        // recorded loudness across the current track
 
-	helpOpen bool // the ? overlay; any key dismisses it
+	helpOpen bool // F1/? opens context-aware controls
 
 	// the a overlay: who is signed in, and the way back out
 	acctOpen    bool
@@ -212,37 +213,59 @@ type model struct {
 	scrDone   bool          // already scrobbled this play
 
 	// search overlay
-	searchOpen bool
-	sInput     bool
-	sQuery     string
-	sTab, sSel int
-	sBusy      bool
-	sRes       engine.SearchResults
+	searchOpen           bool
+	sInput               bool
+	sQuery               string
+	sTab, sSel           int
+	sOffset              int
+	sBusy                bool
+	sRes                 engine.SearchResults
+	searchRequestID      uint64
+	sErr, sNotice, sTerm string
+	sClickID             string
+	sClickAt             time.Time
 
-	discoveryOpen      bool
-	discoveryBusy      bool
-	discoveryErr       string
-	discoveryFeed      engine.Discovery
-	discoverySel       int
-	discoveryDetail    bool
-	discoveryTracks    []engine.Track
-	discoveryTrackSel  int
-	discoveryTitle     string
-	saveConfirmOpen    bool
-	saveConfirmTrack   engine.Track
-	queueOpen          bool
-	queuePrevFocus     int
-	statsOpen          bool
-	statsBusy          bool
-	statsErr           string
-	statsRes           engine.SearchResults
-	statsRange         statsRange
-	listenHistory      *listeningHistory
-	listenLastTrack    string
-	listenLastSave     time.Time
-	libraryOpen        bool
-	libraryErr         string
-	libraryDetailTitle string
+	discoveryOpen        bool
+	discoveryBusy        bool
+	discoveryErr         string
+	discoveryFeed        engine.Discovery
+	discoverySel         int
+	discoveryDetail      bool
+	discoveryTracks      []engine.Track
+	discoveryTrackSel    int
+	discoveryTitle       string
+	saveConfirmOpen      bool
+	saveConfirmTrack     engine.Track
+	queueOpen            bool
+	queuePrevFocus       int
+	statsOpen            bool
+	statsBusy            bool
+	statsErr             string
+	statsRes             engine.SearchResults
+	statsRange           statsRange
+	statsTrackSel        int
+	statsTrackOffset     int
+	statsAlbumSel        int
+	statsAlbumOffset     int
+	statsAlbumRequestID  uint64
+	statsAlbumBusy       bool
+	statsFocus           int
+	statsArtistSel       int
+	statsArtistOffset    int
+	statsArtistData      map[string]statsArtistResult
+	statsArtistRequestID uint64
+	artistBrowser        artistBrowserState
+	artistRequestID      uint64
+	artistArt            *artCache
+	artistArtRequested   map[string]bool
+	statsClickID         string
+	statsClickAt         time.Time
+	listenHistory        *listeningHistory
+	listenLastTrack      string
+	listenLastSave       time.Time
+	libraryOpen          bool
+	libraryErr           string
+	libraryDetailTitle   string
 }
 
 func (m model) visualizerTitle() string {
@@ -330,6 +353,16 @@ const badPollsToReconnect = 5
 // visible login window on its own when the session is really gone.
 func (m model) reconnect(status string) (tea.Model, tea.Cmd) {
 	eng := m.eng
+	m.cancelStatsAlbum()
+	m.searchRequestID++
+	m.sBusy = false
+	if m.artistBrowser.open {
+		m.libraryOpen = false
+	}
+	m.artistBrowser = artistBrowserState{}
+	m.artistRequestID++
+	m.statsArtistRequestID++
+	m.statsArtistData = nil
 	m.closeVisualizerAsync()
 	m.vizTerminal = false
 	m.mpris.Close()
@@ -445,6 +478,18 @@ func doCmd(f func() error) tea.Cmd {
 	}
 }
 
+// Action notices never complete or fail a separate pending playback operation.
+type actionNoticeMsg string
+
+func actionCmd(f func() error) tea.Cmd {
+	return func() tea.Msg {
+		if err := f(); err != nil {
+			return actionNoticeMsg(err.Error())
+		}
+		return nil
+	}
+}
+
 func fetchLyricsCmd(id, artist, title string, dur time.Duration) tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -518,8 +563,41 @@ func (m model) Init() tea.Cmd {
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case catalogSearchMsg:
+		return m.applyCatalogSearch(msg)
+	case searchQueueMsg:
+		if m.searchOpen && msg.request == m.searchRequestID {
+			m.sNotice = msg.notice
+			if msg.err != nil {
+				m.sNotice = "Queue failed: " + msg.err.Error()
+			}
+		}
+	case artistBrowserMsg:
+		return m.applyArtistBrowser(msg)
+	case artistQueueMsg:
+		if m.artistBrowser.open && msg.request == m.artistRequestID {
+			m.artistBrowser.notice = msg.notice
+			if msg.err != nil {
+				m.artistBrowser.notice = "Could not add to queue: " + msg.err.Error()
+			}
+		}
+	case statsAlbumMsg:
+		return m.applyStatsAlbum(msg)
+	case statsArtistMsg:
+		return m.applyStatsArtist(msg)
+	case artistImageMsg:
+		if msg.img != nil {
+			if m.artistArt == nil {
+				m.artistArt = newArtCache(16)
+			}
+			m.artistArt.put(msg.key, msg.img)
+			delete(m.artistArtRequested, msg.key)
+		}
 	case tea.WindowSizeMsg:
 		m.w, m.h = msg.Width, msg.Height
+		if m.helpOpen {
+			m.helpPage = min(max(0, m.helpPage), m.helpPageCount()-1)
+		}
 		if m.focus == focusLibrary && !m.libraryVisible() {
 			m.focus = focusQueue
 		}
@@ -529,6 +607,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			} else {
 				m.focus = focusPlayer
 			}
+		}
+		if m.artistBrowser.open {
+			return m.requestVisibleArtistImages()
+		}
+		if m.statsOpen {
+			return m.requestStatsArtists()
+		}
+		if m.searchOpen {
+			return m.requestSearchArtwork()
 		}
 	case tickMsg:
 		if !m.sleepUntil.IsZero() && !time.Now().Before(m.sleepUntil) {
@@ -620,6 +707,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds := []tea.Cmd{
 			m.fetchState(),
 			m.libraryCmd(), // fills the recently-played grid
+		}
+		if m.statsOpen {
+			var artistCmd tea.Cmd
+			m, artistCmd = m.requestStatsArtists()
+			cmds = append(cmds, artistCmd)
 		}
 		// System audio capture outlives the browser, so a reconnect keeps the
 		// visualizer it already has instead of opening a second source.
@@ -799,6 +891,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.statsRes = msg.res
 			m.statsErr = ""
 		}
+		return m.requestStatsArtists()
+	case actionNoticeMsg:
+		m.note, m.noteAt = string(msg), m.t
 	case noteMsg:
 		m.note, m.noteAt = string(msg), m.t
 		m.loading = "" // action failed — stop the spinner
@@ -806,6 +901,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.failAudioInitialization()
 		}
 	case searchMsg:
+		if msg.keepInput && m.searchOpen && (m.sBusy || m.sTerm != "") {
+			if len(msg.res.Recent) > 0 {
+				m.recent = msg.res.Recent
+				m.sRes.Recent = msg.res.Recent
+			}
+			return m, nil
+		}
 		m.libraryPaged = msg.category != ""
 		if m.libraryOpen {
 			m.libraryErr = ""
@@ -854,22 +956,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m.updateMouse(msg)
 	case tea.KeyMsg:
-		// Any key dismisses help, and that key does nothing else — reading the
-		// list should never fire the command you were looking up.
 		if m.helpOpen {
-			if pageDirection(msg) > 0 || msg.String() == "right" {
-				m.helpPage = min(m.helpPage+1, m.helpPageCount()-1)
-				return m, nil
-			}
-			if pageDirection(msg) < 0 || msg.String() == "left" {
-				m.helpPage = max(0, m.helpPage-1)
-				return m, nil
-			}
-			m.helpOpen = false
-			return m, nil
+			return m.updateHelp(msg)
+		}
+		if m.phase == phaseReady && (msg.String() == "f1" || (msg.String() == "?" && !(m.searchOpen && m.sInput))) {
+			return m.openHelp()
 		}
 		if m.acctOpen {
 			return m.updateAccount(msg)
+		}
+		if m.artistBrowser.open {
+			return m.updateArtistBrowser(msg)
 		}
 		if m.libraryOpen {
 			return m.updateLibraryView(msg)
@@ -918,6 +1015,9 @@ func (m model) updateKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.audioInitializing() {
 		switch msg.String() {
 		case " ", "n", "p", "enter":
+			if msg.String() == "enter" && m.focus == focusLibrary {
+				break
+			}
 			m.note, m.noteAt = audioInitializingText, m.t
 			return m, nil
 		}
@@ -948,12 +1048,23 @@ func (m model) updateKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			eng.Close()
 		}
 		return m, tea.Quit
-	case "tab":
-		m.focus = (m.focus + 1) % 4
-		if m.focus == focusLibrary && !m.libraryVisible() {
-			m.focus = focusPlayer
-		} else if m.focus == focusRecent && !m.recentVisible() {
-			m.focus = focusPlayer
+	case "tab", "shift+tab":
+		if m.mini {
+			return m, nil
+		}
+		direction := 1
+		if msg.String() == "shift+tab" {
+			direction = -1
+		}
+		for i := 0; i < 4; i++ {
+			m.focus = (m.focus + direction + 4) % 4
+			if m.focus == focusLibrary && !m.libraryVisible() {
+				continue
+			}
+			if m.focus == focusRecent && !m.recentVisible() {
+				continue
+			}
+			break
 		}
 	case " ":
 		if m.st.Recovering {
@@ -971,9 +1082,8 @@ func (m model) updateKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, doCmd(eng.ToggleShuffle)
 	case "r", "R":
 		return m, doCmd(eng.CycleRepeat)
-	case "?":
-		m.helpPage = 0
-		m.helpOpen = true
+	case "?", "f1":
+		return m.openHelp()
 	case "a":
 		m.acctOpen, m.acctLoading = true, true
 		return m, accountCmd(eng)
@@ -987,9 +1097,9 @@ func (m model) updateKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		name := "Pomme Queue " + time.Now().Format("2006-01-02 15:04")
 		return m, func() tea.Msg {
 			if err := eng.SavePlaylist(name); err != nil {
-				return noteMsg(err.Error())
+				return actionNoticeMsg(err.Error())
 			}
-			return noteMsg("Saved playlist: " + name)
+			return actionNoticeMsg("Saved playlist: " + name)
 		}
 	case "L":
 		selection := 1 // Open Songs when Library is not focused.
@@ -1000,7 +1110,7 @@ func (m model) updateKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "delete":
 		if m.focus == focusQueue {
 			index := m.selIdx
-			return m, doCmd(func() error { return eng.EditQueue("remove", index, 0) })
+			return m, actionCmd(func() error { return eng.EditQueue("remove", index, 0) })
 		}
 	case "ctrl+up", "ctrl+down":
 		if m.focus == focusQueue {
@@ -1011,13 +1121,23 @@ func (m model) updateKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 			if target >= 0 && target < len(m.st.Queue) {
 				m.selIdx = target
-				return m, doCmd(func() error { return eng.EditQueue("move", index, target) })
+				return m, actionCmd(func() error { return eng.EditQueue("move", index, target) })
 			}
 		}
-	case "ctrl+delete":
-		return m, doCmd(func() error { return eng.EditQueue("clear", 0, 0) })
+	case "ctrl+x", "ctrl+delete":
+		if m.focus == focusQueue && len(m.st.Queue) > 0 {
+			return m, actionCmd(func() error { return eng.EditQueue("clear", 0, 0) })
+		}
 	case "m":
 		m.mini = !m.mini
+		if m.mini {
+			m.miniPrevFocus, m.focus = m.focus, focusPlayer
+		} else {
+			m.focus = m.miniPrevFocus
+			if m.focus == focusLibrary && !m.libraryVisible() || m.focus == focusRecent && !m.recentVisible() {
+				m.focus = focusPlayer
+			}
+		}
 	case "T":
 		choices := []int{0, 15, 30, 60, 90}
 		m.sleepChoice = (m.sleepChoice + 1) % len(choices)
@@ -1689,7 +1809,7 @@ func (m model) bootView() string {
 }
 
 func (m model) View() string {
-	if m.mini && m.phase == phaseReady && !m.searchOpen && !m.helpOpen && !m.acctOpen {
+	if m.mini && m.phase == phaseReady && !m.searchOpen && !m.helpOpen && !m.acctOpen && !m.libraryOpen && !m.artistBrowser.open && !m.statsOpen && !m.discoveryOpen && !m.queueOpen {
 		return m.miniView()
 	}
 	if m.w < 70 || m.h < 22 {
@@ -1703,6 +1823,9 @@ func (m model) View() string {
 	}
 	if m.acctOpen {
 		return m.accountView()
+	}
+	if m.artistBrowser.open {
+		return m.artistBrowserView()
 	}
 	if m.libraryOpen {
 		return m.libraryView()

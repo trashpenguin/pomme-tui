@@ -128,9 +128,9 @@ func (m *model) advanceScrobble(elapsed time.Duration) tea.Cmd {
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
 		if err := client.Scrobble(ctx, track, started); err != nil {
-			return noteMsg(err.Error())
+			return actionNoticeMsg(err.Error())
 		}
-		return noteMsg("scrobbled · " + track.Title)
+		return actionNoticeMsg("scrobbled · " + track.Title)
 	}
 }
 

@@ -12,7 +12,7 @@ import (
 
 func TestAccountOverlayOnlyEnterSignsOut(t *testing.T) {
 	// A stray key must not sign the user out — this overlay has an action in it,
-	// unlike the help one where any key just closes.
+	// and only Enter may invoke that action.
 	for _, key := range []tea.KeyMsg{
 		{Type: tea.KeyRunes, Runes: []rune("a")},
 		{Type: tea.KeyEsc},

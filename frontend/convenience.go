@@ -2,11 +2,9 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 )
 
 func rememberSearch(history []string, query string) []string {
@@ -55,20 +53,4 @@ func saveSearchHistory(history []string) {
 		return
 	}
 	_ = os.WriteFile(filepath.Join(dir, "search-history.json"), data, 0600)
-}
-func (m model) miniView() string {
-	w := max(1, m.w-2)
-	progress := 0
-	if m.st.Dur > 0 {
-		progress = int(float64(m.st.Pos) / float64(m.st.Dur) * float64(w))
-	}
-	state := "paused"
-	if m.st.Playing {
-		state = "playing"
-	}
-	timer := ""
-	if !m.sleepUntil.IsZero() {
-		timer = " | sleep " + time.Until(m.sleepUntil).Round(time.Second).String()
-	}
-	return pad("pomme >_  "+state+timer, w) + "\n" + pad(m.st.Now.Title+" - "+m.st.Now.Artist, w) + "\n" + m.progressBar(w, progress) + "\n" + pad(fmtTime(m.st.Pos)+" / "+fmtTime(m.st.Dur), w) + "\n" + pad("Space pause | n/p skip | m expand | T timer | q quit", w) + "\n" + pad(fmt.Sprint(m.note), w)
 }

@@ -140,6 +140,7 @@ func TestZeroInitStartDoesNotWarn(t *testing.T) {
 
 func TestNewPlayAttemptRestartsInitializationTimer(t *testing.T) {
 	m := model{
+		eng:        &engine.Engine{},
 		phase:      phaseReady,
 		t:          90,
 		st:         engine.State{Initializing: true},
@@ -247,6 +248,7 @@ func TestInitializationWarningDoesNotRefreshNoteTime(t *testing.T) {
 func startPlayAttempt(t *testing.T, st engine.State) model {
 	t.Helper()
 	m := model{
+		eng:   &engine.Engine{},
 		phase: phaseReady,
 		st:    st,
 		sTab:  1,

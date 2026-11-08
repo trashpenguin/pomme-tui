@@ -1,11 +1,30 @@
 package main
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/k1y0miiii/applemusic-tui/engine"
 )
+
+func TestStatsSameNamedAlbumsKeepArtistsAndCountsSeparate(t *testing.T) {
+	now := time.Now()
+	entries := map[string]listeningRecord{}
+	for i := 0; i < 10; i++ {
+		id := fmt.Sprint(i)
+		entries[id] = listeningRecord{ID: id, Title: id, Artist: "Artist A", Album: "Greatest Hits", Plays: 2}
+	}
+	entries["other"] = listeningRecord{ID: "other", Artist: "Artist B", Album: "Greatest Hits", Plays: 3}
+	h := &listeningHistory{Days: map[string]map[string]listeningRecord{now.Format("2006-01-02"): entries}}
+	if got := h.albumSongID(statsLast7, now, "Greatest Hits", "Artist A"); got == "other" || got == "" {
+		t.Fatal("album source crossed artist identity")
+	}
+	albums := h.summary(statsLast7, now).Albums
+	if len(albums) != 2 || albums[0].Artist != "Artist A" || albums[0].Plays != 20 || albums[1].Plays != 3 {
+		t.Fatalf("unrelated same-named albums were combined: %+v", albums)
+	}
+}
 
 func TestListeningHistoryAggregatesAndFiltersRanges(t *testing.T) {
 	now := time.Date(2026, 10, 18, 12, 0, 0, 0, time.Local)

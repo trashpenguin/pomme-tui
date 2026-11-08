@@ -149,8 +149,8 @@ func (h *listeningHistory) summary(period statsRange, now time.Time) statsSummar
 			}
 			if entry.Album != "" {
 				album := entry
-				album.Title, album.Artist = entry.Album, ""
-				mergeListenRecord(albums, entry.Album, album)
+				album.Title = entry.Album
+				mergeListenRecord(albums, entry.Album+"\x00"+entry.Artist, album)
 			}
 		}
 	}
@@ -180,7 +180,16 @@ func topListenRecords(records map[string]listeningRecord) []listeningRecord {
 	}
 	sort.Slice(result, func(i, j int) bool {
 		if result[i].Plays == result[j].Plays {
-			return result[i].Seconds > result[j].Seconds
+			if result[i].Seconds != result[j].Seconds {
+				return result[i].Seconds > result[j].Seconds
+			}
+			if result[i].Title != result[j].Title {
+				return result[i].Title < result[j].Title
+			}
+			if result[i].Artist != result[j].Artist {
+				return result[i].Artist < result[j].Artist
+			}
+			return result[i].ID < result[j].ID
 		}
 		return result[i].Plays > result[j].Plays
 	})

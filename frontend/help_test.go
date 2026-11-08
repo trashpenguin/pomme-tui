@@ -118,7 +118,7 @@ func TestFitHintsFallsBackRatherThanTruncating(t *testing.T) {
 	}
 }
 
-func TestHelpKeyOpensAndAnyKeyCloses(t *testing.T) {
+func TestHelpKeyOpensAndEscCloses(t *testing.T) {
 	m := model{phase: phaseReady, w: minCols, h: minRows}
 	next, _ := m.updateKeys(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("?")})
 	opened := next.(model)
@@ -126,15 +126,37 @@ func TestHelpKeyOpensAndAnyKeyCloses(t *testing.T) {
 		t.Fatal("? did not open the help overlay")
 	}
 
-	// Any key closes it, and must not also run its own command — reading the
-	// list should never fire the thing you were looking up.
+	// Unrelated keys stay inside help; closing it never runs an underlying action.
 	opened.vizMode = vizBars
-	closed, _ := opened.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("v")})
+	ignored, _ := opened.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("v")})
+	if !ignored.(model).helpOpen {
+		t.Fatal("unrelated key closed controls")
+	}
+	closed, _ := ignored.(model).Update(tea.KeyMsg{Type: tea.KeyEsc})
 	after := closed.(model)
 	if after.helpOpen {
 		t.Error("a key press did not dismiss the help overlay")
 	}
 	if after.vizMode != vizBars {
 		t.Errorf("the dismissing key also cycled the visualizer to %d", after.vizMode)
+	}
+}
+
+func TestHelpKeepsWholeSectionsOnTheSamePage(t *testing.T) {
+	for _, size := range [][2]int{{70, 22}, {100, 30}, {140, 45}, {100, 48}} {
+		m := model{w: size[0], h: size[1]}
+		for page := 0; page < m.helpPageCount(); page++ {
+			m.helpPage = page
+			view := m.helpView()
+			for _, section := range helpSections {
+				if strings.Contains(view, section.title) {
+					for _, entry := range section.entries {
+						if !strings.Contains(view, entry.action) {
+							t.Fatalf("%v page%d separates %s from %s", size, page, section.title, entry.action)
+						}
+					}
+				}
+			}
+		}
 	}
 }

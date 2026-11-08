@@ -1,3 +1,3 @@
 @echo off
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0Run-Pomme.ps1" %*
+"%~dp0Pomme.exe" %*
 exit /b %errorlevel%

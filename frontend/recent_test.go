@@ -282,6 +282,7 @@ func TestRecentArtworkRequestsOnlyVisibleTracks(t *testing.T) {
 // Enter on a library item opens the matching paged library view.
 func TestEnterOnLibraryCategoryOpensAlbumList(t *testing.T) {
 	m := recentModel()
+	m.eng = &engine.Engine{}
 	m.focus = focusLibrary
 	m.librarySelection = 2
 

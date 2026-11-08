@@ -49,6 +49,7 @@ func TestEnterOpensSelectedLibraryCategory(t *testing.T) {
 		{selection: 5, category: 4}, // Favorites.
 	} {
 		m := mouseModel(100, 34, 5)
+		m.eng = &engine.Engine{}
 		m.focus, m.librarySelection, m.libraryOffset = focusLibrary, tc.selection, 50
 		updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 		got := updated.(model)
@@ -84,6 +85,7 @@ func TestEnterLibraryDiscoveryAndStatsOpenDedicatedPages(t *testing.T) {
 
 func TestUppercaseLOpensSelectedDedicatedLibraryPage(t *testing.T) {
 	m := mouseModel(100, 34, 5)
+	m.eng = &engine.Engine{}
 	m.focus, m.librarySelection = focusLibrary, 3 // Playlists.
 	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'L'}})
 	got := updated.(model)
@@ -94,7 +96,9 @@ func TestUppercaseLOpensSelectedDedicatedLibraryPage(t *testing.T) {
 
 func TestUppercaseLOpensDedicatedPageFromSearchResults(t *testing.T) {
 	m := mouseModel(100, 34, 5)
+	m.eng = &engine.Engine{}
 	m.searchOpen, m.sInput, m.libraryCategory = true, false, 2 // Playlists.
+	m.sTab = 3
 	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'L'}})
 	got := updated.(model)
 	if cmd == nil || !got.libraryOpen || got.searchOpen || got.libraryCategory != 2 {
@@ -122,6 +126,7 @@ func TestCtrlLDoesNothingInSearchOrLibrary(t *testing.T) {
 
 func TestClickLibraryItemSelectsAndOpensIt(t *testing.T) {
 	m := mouseModel(100, 34, 5)
+	m.eng = &engine.Engine{}
 	m.recent = []engine.Track{{Title: "recent"}}
 	lay := m.layout()
 
@@ -180,7 +185,7 @@ func TestDiscoveryViewShowsAppleShelvesAndOpensPlaylistTracks(t *testing.T) {
 		t.Fatal("Enter did not open the selected playlist's track page")
 	}
 	updated, _ = updated.(model).Update(discoveryTracksMsg{tracks: []engine.Track{{Title: "First Track", Kind: "song"}}})
-	if view := updated.(model).View(); !strings.Contains(view, "First Track") || !strings.Contains(view, "P Queue whole list") {
+	if view := updated.(model).View(); !strings.Contains(view, "First Track") || !strings.Contains(view, "P Queue collection") {
 		t.Fatal("opened discovery playlist did not render its tracks")
 	}
 	back, _ := updated.(model).Update(tea.KeyMsg{Type: tea.KeyEsc})

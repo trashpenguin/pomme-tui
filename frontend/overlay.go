@@ -28,10 +28,13 @@ func (m model) curList() []engine.Track {
 }
 
 func (m model) searchCmd() tea.Cmd {
-	eng, term := m.eng, m.sQuery
+	eng, term, request := m.eng, strings.TrimSpace(m.sQuery), m.searchRequestID
 	return func() tea.Msg {
+		if eng == nil {
+			return catalogSearchMsg{request: request, query: term, err: fmt.Errorf("Connect to Apple Music to search.")}
+		}
 		res, err := eng.Search(term)
-		return searchMsg{res: res, err: err}
+		return catalogSearchMsg{request: request, query: term, res: res, err: err}
 	}
 }
 
@@ -56,6 +59,10 @@ func (m model) statsCmd() tea.Cmd {
 }
 
 func (m model) openLibrarySelection(selection int) (tea.Model, tea.Cmd) {
+	m.searchRequestID++
+	m.cancelStatsAlbum()
+	m.artistBrowser.open = false
+	m.artistRequestID++
 	switch selection {
 	case 0:
 		m.discoveryOpen, m.statsOpen, m.searchOpen = true, false, false
@@ -65,6 +72,10 @@ func (m model) openLibrarySelection(selection int) (tea.Model, tea.Cmd) {
 	case 6:
 		m.statsOpen, m.discoveryOpen, m.searchOpen = true, false, false
 		m.statsBusy, m.statsErr = true, ""
+		m.statsTrackSel, m.statsClickID = 0, ""
+		m.statsTrackOffset = 0
+		m.statsAlbumSel, m.statsAlbumOffset = 0, 0
+		m.statsFocus, m.statsArtistSel, m.statsArtistOffset = 0, 0, 0
 		return m, m.statsCmd()
 	default:
 		m.libraryCategory = max(0, min(selection-1, 4))
@@ -72,6 +83,18 @@ func (m model) openLibrarySelection(selection int) (tea.Model, tea.Cmd) {
 		m.libraryOpen, m.searchOpen, m.sInput, m.sBusy = true, false, false, true
 		m.libraryErr, m.libraryDetailTitle = "", ""
 		m.libraryPaged = true
+		if m.libraryCategory == 1 {
+			m.artistBrowser = artistBrowserState{open: true, origin: artistFromAlbums}
+			return m.openArtistLibrary(0)
+		}
+		if m.libraryCategory == 2 {
+			m.artistBrowser = artistBrowserState{open: true, origin: artistFromPlaylists}
+			return m.openArtistLibrary(0)
+		}
+		if m.libraryCategory == 3 {
+			m.artistBrowser = artistBrowserState{open: true, origin: artistFromLibrary}
+			return m.openArtistLibrary(0)
+		}
 		return m, m.pagedLibraryCmd()
 	}
 }
@@ -109,9 +132,9 @@ func (m model) saveDiscoveryCmd(track engine.Track) tea.Cmd {
 	eng := m.eng
 	return func() tea.Msg {
 		if err := eng.SaveToLibrary(track.Kind, track.ID); err != nil {
-			return noteMsg("could not save to library: " + err.Error())
+			return actionNoticeMsg("could not save to library: " + err.Error())
 		}
-		return noteMsg("saved to library: " + track.Title)
+		return actionNoticeMsg("saved to library: " + track.Title)
 	}
 }
 
@@ -123,13 +146,13 @@ func (m model) queueDiscoveryCmd(track engine.Track, next bool) tea.Cmd {
 			queue = eng.QueueNext
 		}
 		if err := queue(track.Kind, track.ID); err != nil {
-			return noteMsg("could not queue " + track.Title + ": " + err.Error())
+			return actionNoticeMsg("could not queue " + track.Title + ": " + err.Error())
 		}
 		where := "queue"
 		if next {
 			where = "next"
 		}
-		return noteMsg("added to " + where + ": " + track.Title)
+		return actionNoticeMsg("added to " + where + ": " + track.Title)
 	}
 }
 
@@ -151,13 +174,17 @@ func (m model) updateQueueManager(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	switch msg.String() {
-	case "esc", "q":
+	case "esc", "q", "ctrl+c":
 		return m.closeQueueManager()
 	case "up", "k":
 		m.selIdx = max(0, m.selIdx-1)
 	case "down", "j":
 		m.selIdx = min(m.selIdx+1, max(0, len(m.st.Queue)-1))
 	case "enter":
+		if m.audioInitializing() {
+			m.note, m.noteAt = audioInitializingText, m.t
+			return m, nil
+		}
 		if m.selIdx < len(m.st.Queue) {
 			i := m.selIdx
 			m.note, m.noteAt = "playing: "+m.st.Queue[i].Title, m.t
@@ -168,7 +195,7 @@ func (m model) updateQueueManager(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			track := m.st.Queue[m.selIdx]
 			i := m.selIdx
 			m.note, m.noteAt = "removed from queue: "+track.Title, m.t
-			return m, doCmd(func() error { return eng.EditQueue("remove", i, 0) })
+			return m, actionCmd(func() error { return eng.EditQueue("remove", i, 0) })
 		}
 	case "ctrl+up", "ctrl+down":
 		if m.selIdx < len(m.st.Queue) {
@@ -180,14 +207,14 @@ func (m model) updateQueueManager(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			if to >= 0 && to < len(m.st.Queue) {
 				m.selIdx = to
 				m.note, m.noteAt = "moved "+m.st.Queue[from].Title, m.t
-				return m, doCmd(func() error { return eng.EditQueue("move", from, to) })
+				return m, actionCmd(func() error { return eng.EditQueue("move", from, to) })
 			}
 		}
-	case "ctrl+delete":
+	case "ctrl+x", "ctrl+delete":
 		if len(m.st.Queue) > 0 {
 			m.selIdx = 0
 			m.note, m.noteAt = "cleared queue", m.t
-			return m, doCmd(func() error { return eng.EditQueue("clear", 0, 0) })
+			return m, actionCmd(func() error { return eng.EditQueue("clear", 0, 0) })
 		}
 	}
 	return m, nil
@@ -201,7 +228,14 @@ func (m model) queueManagerView() string {
 		title += fmt.Sprintf(" · NOW %d/%d", m.st.QueuePos+1, len(m.st.Queue))
 	}
 	body := m.queuePanel(iw, rows+1)
-	body += "\n" + lipgloss.NewStyle().Foreground(fgFaint).Render(" ↑/↓ select · enter play · del remove · ctrl+↑/↓ reorder · ctrl+del clear · esc/q back")
+	hint := " ↑/↓ select · enter play · del remove · ctrl+↑/↓ reorder · ctrl+x clear · esc/q back"
+	if lipgloss.Width(hint) > iw {
+		hint = " ↑↓ select · ↵ play · Del remove · Ctrl+X clear · Esc"
+	}
+	if m.audioInitializing() {
+		hint = " Audio initializing… · Esc back · F1 controls"
+	}
+	body += "\n" + lipgloss.NewStyle().Foreground(fgFaint).Render(pad(hint, iw))
 	box := panel(title, body, iw, rows+2, true, accentHi)
 	return lipgloss.Place(m.w, m.h, lipgloss.Center, lipgloss.Center,
 		lipgloss.NewStyle().Foreground(accentHi).Bold(true).Render("POMME · QUEUE MANAGER")+"\n"+box)
@@ -364,19 +398,77 @@ func (m model) updateDiscovery(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) updateStats(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	m.statsClickID = ""
+	if msg.String() != "enter" && msg.String() != "e" && msg.String() != "E" {
+		m.cancelStatsAlbum()
+	}
+	summary := m.listenHistory.summary(m.statsRange, time.Now())
+	tracks := summary.Tracks
+	m.statsTrackSel = max(0, min(m.statsTrackSel, len(tracks)-1))
+	m.statsArtistSel = max(0, min(m.statsArtistSel, len(summary.Artists)-1))
+	m.statsAlbumSel = max(0, min(m.statsAlbumSel, len(summary.Albums)-1))
+	selection, count := &m.statsTrackSel, len(tracks)
+	if m.statsFocus == 1 {
+		selection, count = &m.statsArtistSel, len(summary.Artists)
+	}
+	if m.statsFocus == 2 {
+		selection, count = &m.statsAlbumSel, len(summary.Albums)
+	}
 	switch msg.String() {
+	case "tab":
+		m.statsFocus = (m.statsFocus + 1) % 3
+	case "shift+tab":
+		m.statsFocus = (m.statsFocus + 2) % 3
+	case "up", "k":
+		*selection = max(0, *selection-1)
+	case "down", "j":
+		*selection = max(0, min(*selection+1, count-1))
+	case "home":
+		*selection = 0
+	case "end":
+		*selection = max(0, count-1)
+	case "e", "E":
+		if m.statsFocus == 2 {
+			return m.playStatsAlbum()
+		}
+		return m, nil
+	case "enter":
+		if m.statsFocus == 2 {
+			return m.openStatsAlbum()
+		}
+		if m.statsFocus == 1 {
+			if count == 0 {
+				return m, nil
+			}
+			return m.openStatsArtist(summary.Artists[m.statsArtistSel].Title, false)
+		}
+		return m.playStatsTrack()
 	case "esc", "ctrl+c":
 		m.statsOpen = false
 		return m.requestRecentArtwork()
 	case "r", "R":
 		m.listenHistory = loadListeningHistory()
 		m.statsErr = ""
+		m.statsTrackSel = 0
+		m.statsArtistSel, m.statsArtistOffset = 0, 0
+		m.statsAlbumSel, m.statsAlbumOffset = 0, 0
+		m.statsArtistData = nil
+		m.artistArtRequested = nil
 	case "left", "h":
 		m.statsRange = (m.statsRange + statsRange(len(statsRangeNames)) - 1) % statsRange(len(statsRangeNames))
+		m.statsTrackSel, m.statsErr = 0, ""
+		m.statsArtistSel, m.statsArtistOffset = 0, 0
+		m.statsAlbumSel, m.statsAlbumOffset = 0, 0
 	case "right", "l":
 		m.statsRange = (m.statsRange + 1) % statsRange(len(statsRangeNames))
+		m.statsTrackSel, m.statsErr = 0, ""
+		m.statsArtistSel, m.statsArtistOffset = 0, 0
+		m.statsAlbumSel, m.statsAlbumOffset = 0, 0
 	}
-	return m, nil
+	m.statsTrackOffset = statsListStart(m.statsTrackSel, m.statsTrackOffset, m.statsLayout().listRows, len(tracks))
+	m.statsArtistOffset = statsListStart(m.statsArtistSel, m.statsArtistOffset, statsArtistVisible(m.statsLayout()), len(summary.Artists))
+	m.statsAlbumOffset = statsListStart(m.statsAlbumSel, m.statsAlbumOffset, m.statsLayout().listRows, len(summary.Albums))
+	return m.requestStatsArtists()
 }
 
 func (m model) discoveryView() string {
@@ -463,7 +555,7 @@ func (m model) discoveryView() string {
 	var info []string
 	hints := []string{"↑/↓ Move · Enter Open · e Play", "a Queue · A Next · w Save (confirm)", "q Queue manager · Esc Back"}
 	if m.discoveryDetail {
-		hints = []string{"↑/↓ Move · Enter/e Play · a Queue song", "A Queue next · P Queue whole list · w Save", "q Queue manager · Esc Back"}
+		hints = []string{"↑/↓ Move · Enter/e Play · a Queue song", "A Queue next · P Queue collection · w Save", "q Queue manager · Esc Back"}
 		if len(m.discoveryTracks) > 0 && m.discoveryTrackSel < len(m.discoveryTracks) {
 			track := m.discoveryTracks[m.discoveryTrackSel]
 			info = append(info, pink.Render(track.Title))
@@ -492,8 +584,8 @@ func (m model) discoveryView() string {
 }
 
 func (m model) statsView() string {
-	bw := min(120, m.w-8)
-	iw := max(20, bw-2)
+	l := m.statsLayout()
+	iw := l.innerWidth
 	faint := lipgloss.NewStyle().Foreground(fgFaint)
 	dim := lipgloss.NewStyle().Foreground(fgDim)
 	pink := lipgloss.NewStyle().Foreground(accentHi).Bold(true)
@@ -517,7 +609,7 @@ func (m model) statsView() string {
 		}
 		rangeLabels = append(rangeLabels, label)
 	}
-	compact := m.h < 36
+	compact := l.compact
 	selector := panel("STATS · ←/→ RANGE", strings.Join(rangeLabels, "  |  "), iw, 3, true, accentHi)
 	minsToday := summary.TodaySeconds / 60
 	minsTotal := summary.Seconds / 60
@@ -533,16 +625,13 @@ func (m model) statsView() string {
 	}
 	status := panel(statsRangeNames[m.statsRange], pink.Render(streak)+dim.Render("  ·  "+dateSummary), iw, 3, false, accent)
 
-	listRows, panelHeight := 5, 8
-	if compact {
-		listRows, panelHeight = 2, 3
-	}
-	trackWidth := max(16, (iw-4)*42/100)
-	artistWidth := max(16, (iw-4)*29/100)
-	albumWidth := max(16, iw-4-trackWidth-artistWidth)
-	tracksPanel := panel("TOP TRACKS", statsTopLines(summary.Tracks, "track", trackWidth-2, listRows), trackWidth, panelHeight, true, accentHi)
-	artistsPanel := panel("TOP ARTISTS", statsTopLines(summary.Artists, "artist", artistWidth-2, listRows), artistWidth, panelHeight, false, accent)
-	albumsPanel := panel("TOP ALBUMS", statsTopLines(summary.Albums, "album", albumWidth-2, listRows), albumWidth, panelHeight, false, accent)
+	selected := max(0, min(m.statsTrackSel, len(summary.Tracks)-1))
+	start := statsListStart(selected, m.statsTrackOffset, l.listRows, len(summary.Tracks))
+	tracksPanel := panel("TOP TRACKS", statsTopLines(summary.Tracks, "track", l.widths[0], l.listRows, selected, start), l.widths[0], l.panelHeight, m.statsFocus == 0, accentHi)
+	artistsPanel := panel("TOP ARTISTS", m.statsArtistCards(summary.Artists, l), l.widths[1], l.panelHeight, m.statsFocus == 1, accentHi)
+	albumSelected := max(0, min(m.statsAlbumSel, len(summary.Albums)-1))
+	albumStart := statsListStart(albumSelected, m.statsAlbumOffset, l.listRows, len(summary.Albums))
+	albumsPanel := panel("TOP ALBUMS", statsTopLines(summary.Albums, "album", l.widths[2], l.listRows, albumSelected, albumStart), l.widths[2], l.panelHeight, m.statsFocus == 2, accentHi)
 	top := lipgloss.JoinHorizontal(lipgloss.Top, tracksPanel, " ", artistsPanel, " ", albumsPanel)
 
 	chartWidth := iw
@@ -579,15 +668,45 @@ func (m model) statsView() string {
 	chart := panel(chartTitle, strings.Join(chartRows, "\n"), chartWidth, chartHeight, false, accent)
 	content := lipgloss.JoinVertical(lipgloss.Left, selector, status, top, chart)
 	if !compact {
+		detail := "No tracks in this range."
+		if len(summary.Tracks) > 0 {
+			record := summary.Tracks[selected]
+			detail = record.Title
+			if record.Artist != "" {
+				detail += " — " + record.Artist
+			}
+		}
+		if m.statsFocus == 1 && len(summary.Artists) > 0 {
+			record := summary.Artists[max(0, min(m.statsArtistSel, len(summary.Artists)-1))]
+			detail = fmt.Sprintf("%s · %d plays · Enter opens artist", artistLabel(record.Title), record.Plays)
+		}
+		if m.statsFocus == 2 && len(summary.Albums) > 0 {
+			record := summary.Albums[albumSelected]
+			detail = fmt.Sprintf("%s — %s · %d plays · Enter opens album · e plays all", artistLabel(record.Title), artistLabel(record.Artist), record.Plays)
+		}
+		if m.statsErr != "" {
+			detail = m.statsErr
+		}
 		content = lipgloss.JoinVertical(lipgloss.Left,
 			lipgloss.NewStyle().Foreground(accentHi).Bold(true).Render("POMME · STATS"),
 			content,
-			faint.Render(" ←/→ change range · r refresh · Esc close · local listening history"))
+			faint.Render(pad(detail, iw+2)))
 	}
+	hints := " Tab tracks/artists/albums · ↑↓ select · Enter play/open · ←→ range · r refresh · Esc close"
+	if lipgloss.Width(hints) > iw+2 {
+		hints = " Tab focus · ↑↓ · ↵ play/open · ←→ range · r refresh · Esc"
+	}
+	if m.statsFocus == 2 {
+		hints = " Tab focus · ↑↓ select · ↵ open · e play all · ←→ range · r refresh · Esc"
+	}
+	if compact && m.statsErr != "" {
+		hints = m.statsErr
+	}
+	content = lipgloss.JoinVertical(lipgloss.Left, content, faint.Render(pad(hints, iw+2)))
 	return lipgloss.Place(m.w, m.h, lipgloss.Center, lipgloss.Center, content)
 }
 
-func statsTopLines(records []listeningRecord, kind string, width, rows int) string {
+func statsTopLines(records []listeningRecord, kind string, width, rows, selected, start int) string {
 	if width < 1 {
 		return ""
 	}
@@ -595,14 +714,25 @@ func statsTopLines(records []listeningRecord, kind string, width, rows int) stri
 	if len(records) == 0 {
 		lines = append(lines, lipgloss.NewStyle().Foreground(fgFaint).Render(" no plays yet"))
 	} else {
-		for i, record := range records {
+		for i := start; i < min(start+rows, len(records)); i++ {
+			record := records[i]
 			name := record.Title
-			if kind == "track" && record.Artist != "" {
+			if (kind == "track" || kind == "album") && record.Artist != "" {
 				name += " — " + record.Artist
 			}
-			line := fmt.Sprintf("%d. %s  %d plays", i+1, name, record.Plays)
-			if i == 0 {
-				line = lipgloss.NewStyle().Foreground(accentHi).Bold(true).Render("› " + line)
+			prefix := fmt.Sprintf("  %d. ", i+1)
+			if i == selected {
+				prefix = fmt.Sprintf("› %d. ", i+1)
+			}
+			unit := "plays"
+			if record.Plays == 1 {
+				unit = "play"
+			}
+			count := fmt.Sprintf("  %d %s", record.Plays, unit)
+			room := max(0, width-lipgloss.Width(prefix)-lipgloss.Width(count))
+			line := prefix + pad(statsTruncate(name, room), room) + count
+			if i == selected {
+				line = lipgloss.NewStyle().Foreground(accentHi).Background(selBg).Bold(true).Render(line)
 			}
 			lines = append(lines, pad(line, width))
 		}
@@ -625,7 +755,9 @@ func formatListenDuration(seconds int) string {
 
 func (m model) updateSearch(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	eng := m.eng
+	queryBefore := m.sQuery
 	list := m.curList()
+	m.sClickID = ""
 	if direction := pageDirection(msg); direction != 0 {
 		if m.sBusy {
 			return m, nil
@@ -638,15 +770,19 @@ func (m model) updateSearch(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, m.pagedLibraryCmd()
 		}
 		m.sSel = max(0, min(m.sSel+direction*m.searchRows(), len(list)-1))
-		return m, nil
+		return m.requestSearchArtwork()
 	}
 	switch msg.String() {
 	case "L":
 		if m.sInput {
 			m.sQuery += "L"
-			return m, nil
+			break
 		}
-		return m.openLibrarySelection(m.libraryCategory + 1)
+		selection := 1
+		if m.sTab >= 2 {
+			selection = m.sTab
+		}
+		return m.openLibrarySelection(selection)
 	case "ctrl+p", "ctrl+n":
 		if len(m.searchHistory) > 0 {
 			if msg.String() == "ctrl+p" {
@@ -658,47 +794,57 @@ func (m model) updateSearch(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.sInput = true
 		}
 	case "esc", "ctrl+c":
-		m.searchOpen = false
+		m.searchOpen, m.sBusy = false, false
+		m.searchRequestID++
 		return m.requestRecentArtwork()
 	case "enter":
-		if m.sInput {
+		if m.sInput || len(list) == 0 {
 			if strings.TrimSpace(m.sQuery) != "" {
+				if m.sBusy {
+					return m, nil
+				}
+				m.searchRequestID++
+				m.sErr, m.sNotice = "", ""
 				m.searchHistory = rememberSearch(m.searchHistory, m.sQuery)
 				saveSearchHistory(m.searchHistory)
 				m.historyIndex = -1
 				m.sBusy = true
 				return m, m.searchCmd()
 			}
-			m.sBusy = true // empty query = reload library
-			return m, m.libraryCmd()
-		} else if m.sSel < len(list) {
-			if m.audioInitializing() {
-				m.note, m.noteAt = audioInitializingText, m.t
-				return m, nil
-			}
-			kind, id, title := list[m.sSel].Kind, list[m.sSel].ID, list[m.sSel].Title
-			if kind == "artist" {
-				m.sBusy = true
-				m.sTab = 1
-				return m, func() tea.Msg { res, err := eng.ArtistPage(id); return searchMsg{res: res, err: err} }
-			}
-			m.searchOpen = false
-			m.loading, m.loadSnap, m.loadStart = title, snap(m.st), m.t
-			m.loadHideQueue = true // the whole queue is being replaced
-			m.beginAudioInitialization()
-			play := doCmd(func() error { return eng.Play(kind, id) })
-			m, art := m.requestRecentArtwork()
-			return m, tea.Batch(play, art)
+			m.sNotice = "Type a song, album, playlist or artist."
+			return m, nil
+		}
+		return m.activateSearchItem(false)
+	case "e", "E":
+		if m.sInput {
+			m.sQuery += msg.String()
+		} else {
+			return m.activateSearchItem(true)
 		}
 	case "tab":
-		m.sTab, m.sSel = (m.sTab+1)%len(tabNames), 0
+		m.sTab, m.sSel, m.sOffset = (m.sTab+1)%len(tabNames), 0, 0
+		m.sNotice = ""
+	case "shift+tab":
+		m.sTab, m.sSel, m.sOffset = (m.sTab+len(tabNames)-1)%len(tabNames), 0, 0
+		m.sNotice = ""
 	case "/":
+		if m.sInput {
+			m.sQuery += "/"
+		}
 		m.sInput = true
 	case "backspace":
 		m.sInput = true
 		if len(m.sQuery) > 0 {
 			r := []rune(m.sQuery)
 			m.sQuery = string(r[:len(r)-1])
+		}
+	case "home":
+		if !m.sInput {
+			m.sSel = 0
+		}
+	case "end":
+		if !m.sInput {
+			m.sSel = max(0, len(list)-1)
 		}
 	case "up":
 		if m.sInput {
@@ -725,19 +871,28 @@ func (m model) updateSearch(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.sSel = min(m.sSel+1, max(0, len(list)-1))
 		}
 	case "a", "A":
-		if !m.sInput {
-			if m.sSel < len(list) {
-				kind, id := list[m.sSel].Kind, list[m.sSel].ID
-				f := eng.QueueLater
-				m.note, m.noteAt = "added to queue: "+list[m.sSel].Title, m.t
-				if msg.String() == "A" {
-					f = eng.QueueNext
-					m.note = "playing next: " + list[m.sSel].Title
-				}
-				return m, doCmd(func() error { return f(kind, id) })
-			}
-		} else {
+		if m.sInput {
 			m.sQuery += msg.String()
+			break
+		}
+		item := m.selectedSearchItem()
+		if m.sBusy || item.ID == "" || m.eng == nil {
+			return m, nil
+		}
+		if item.Kind != "song" && item.Kind != "album" && item.Kind != "playlist" {
+			m.sNotice = "Open the artist to queue a song or album."
+			return m, nil
+		}
+		next, request := msg.String() == "A", m.searchRequestID
+		m.sNotice = "Adding to queue…"
+		return m, func() tea.Msg {
+			queue := eng.QueueLater
+			notice := "Added to queue: " + artistLabel(item.Title)
+			if next {
+				queue = eng.QueueNext
+				notice = "Playing next: " + artistLabel(item.Title)
+			}
+			return searchQueueMsg{request: request, notice: notice, err: queue(item.Kind, item.ID)}
 		}
 	default:
 		if msg.Type == tea.KeyRunes || msg.Type == tea.KeySpace {
@@ -748,7 +903,12 @@ func (m model) updateSearch(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 		}
 	}
-	return m, nil
+	if m.sQuery != queryBefore {
+		m.searchRequestID++
+		m.sBusy = false
+		m.sErr, m.sNotice = "", ""
+	}
+	return m.requestSearchArtwork()
 }
 
 // Library categories have their own browsing page. The slash key remains a
@@ -778,13 +938,8 @@ func (m model) updateLibraryView(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		m.libraryOpen = false
 		return m.requestRecentArtwork()
-	case "tab":
-		m.libraryCategory = (m.libraryCategory + 1) % 5
-		m.libraryOffset, m.sSel = 0, 0
-		m.libraryDetailTitle, m.libraryErr = "", ""
-		m.libraryPaged, m.sBusy = true, true
-		m.sTab = []int{1, 1, 2, 3, 4}[m.libraryCategory]
-		return m, m.pagedLibraryCmd()
+	case "tab", "shift+tab":
+		return m, nil
 	case "/":
 		m.libraryOpen, m.searchOpen, m.sInput = false, true, true
 		return m, nil
@@ -822,7 +977,7 @@ func (m model) updateLibraryView(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				queue = eng.QueueNext
 				m.note = "playing next: " + selected.Title
 			}
-			return m, doCmd(func() error { return queue(selected.Kind, selected.ID) })
+			return m, actionCmd(func() error { return queue(selected.Kind, selected.ID) })
 		}
 	case "up", "k":
 		m.sSel = max(0, m.sSel-1)
@@ -876,72 +1031,10 @@ func (m model) libraryView() string {
 	}
 	body = append(body, faint.Render(" ↑/↓ Move · Enter Play/open"))
 	body = append(body, faint.Render(" a Queue · A Play next · PgUp/PgDn Page"))
-	body = append(body, faint.Render(" Tab Category · / Search · Esc Back"))
+	body = append(body, faint.Render(" / Search · Esc Back"))
 	content := panel(title+page, strings.Join(body, "\n"), iw, len(body)+1, true, accentHi)
 	return lipgloss.Place(m.w, m.h, lipgloss.Center, lipgloss.Center,
 		pink.Bold(true).Render("POMME · LIBRARY")+"\n"+content)
-}
-
-func (m model) searchView() string {
-	bw := min(84, m.w-8)
-	iw := bw - 2 // inner width
-
-	pink := lipgloss.NewStyle().Foreground(accentHi)
-	dim := lipgloss.NewStyle().Foreground(fgDim)
-	faint := lipgloss.NewStyle().Foreground(fgFaint)
-
-	cursor := " "
-	if m.sInput {
-		cursor = pink.Render("▊")
-	}
-	input := pink.Render(" / ") + lipgloss.NewStyle().Foreground(fgBright).Render(m.sQuery) + cursor
-
-	var tabs []string
-	for i, name := range tabNames {
-		st := faint
-		if i == m.sTab {
-			st = pink.Bold(true)
-		}
-		tabs = append(tabs, st.Render(name))
-	}
-	tabLine := " " + strings.Join(tabs, faint.Render("  ·  "))
-
-	rows := m.searchRows()
-	list := m.curList()
-	var body []string
-	switch {
-	case m.sBusy:
-		body = append(body, dim.Render(" searching…"))
-	case len(list) == 0 && strings.TrimSpace(m.sQuery) != "":
-		body = append(body, faint.Render(" no results — enter to search"))
-	case len(list) == 0:
-		body = append(body, faint.Render(" your library — albums & playlists tabs · type to search the catalog"))
-	default:
-		start := max(0, m.sSel-rows+1)
-		for i := start; i < min(start+rows, len(list)); i++ {
-			tr := list[i]
-			line := dim.Render(" "+tr.Title) + faint.Render(" — "+tr.Artist)
-			if tr.Duration > 0 {
-				line += faint.Render("  " + fmtTime(tr.Duration))
-			}
-			if !m.sInput && i == m.sSel {
-				line = lipgloss.NewStyle().Background(selBg).Render(pad(pink.Render(" ")+line, iw))
-			}
-			body = append(body, pad(line, iw))
-		}
-	}
-	hint := faint.Render(" ↵ play · PgUp/Dn or Ctrl+B/F page · tab category · esc close")
-	if m.note != "" {
-		hint = dim.Render(" " + m.note)
-	}
-
-	content := pad(input, iw) + "\n" + pad(tabLine, iw) + "\n\n" +
-		strings.Join(body, "\n") + "\n\n" + pad(hint, iw)
-	box := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).BorderForeground(accent).
-		Width(iw).Render(content)
-	title := pink.Bold(true).Render("SEARCH APPLE MUSIC")
-	return lipgloss.Place(m.w, m.h, lipgloss.Center, lipgloss.Center, title+"\n"+box)
 }
 
 func (m model) pagedLibraryCmd() tea.Cmd {

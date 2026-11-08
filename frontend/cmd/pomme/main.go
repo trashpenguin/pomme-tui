@@ -8,7 +8,8 @@ import (
 	"path/filepath"
 	"runtime"
 
-	"github.com/charmbracelet/x/term"
+	"strings"
+	"time"
 )
 
 const (
@@ -22,40 +23,52 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	if reopenInLargerTerminal(exe, os.Args[1:]) {
+	appArgs, terminalChild := launcherArgs(os.Args[1:])
+	if reopenInPommeTerminal(exe, appArgs, terminalChild) {
 		return
 	}
 	args := []string{"-NoProfile", "-ExecutionPolicy", "Bypass", "-File", filepath.Join(filepath.Dir(exe), "Run-Pomme.ps1")}
-	args = append(args, os.Args[1:]...)
+	args = append(args, appArgs...)
 	cmd := exec.Command("powershell.exe", args...)
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
 	if err = cmd.Run(); err != nil {
 		fmt.Fprintln(os.Stderr, "Pomme could not start:", err)
-		fmt.Fprintln(os.Stderr, "Press Enter to close.")
-		fmt.Scanln()
+		if launcherShouldPause(appArgs) {
+			fmt.Fprintln(os.Stderr, "Press Enter to close.")
+			fmt.Scanln()
+		}
+		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() > 0 {
+			os.Exit(exitErr.ExitCode())
+		}
 		os.Exit(1)
 	}
 }
 
-// reopenInLargerTerminal gives the album-art-and-lyrics layout room to breathe
-// when Pomme is launched from a small console window. If Windows Terminal is
-// unavailable, continue in the user's current terminal at its existing size.
-func reopenInLargerTerminal(exe string, appArgs []string) bool {
-	if runtime.GOOS != "windows" || os.Getenv("POMME_SIZED_TERMINAL") == "1" {
+// Use a Pomme-specific Terminal profile so its tab displays the Pomme icon.
+// Other terminal hosts and non-player CLI commands keep their normal behavior.
+func reopenInPommeTerminal(exe string, appArgs []string, child bool) bool {
+	if runtime.GOOS != "windows" || !shouldOpenPommeTerminal(appArgs, child, os.Getenv("WT_PROFILE_ID")) {
 		return false
 	}
-	cols, rows, err := term.GetSize(os.Stdout.Fd())
-	if err == nil && cols >= startupColumns && rows >= startupRows {
-		return false
+	for _, arg := range append([]string{exe}, appArgs...) {
+		if strings.ContainsAny(arg, ";\r\n") {
+			return false
+		}
 	}
 	wt, err := exec.LookPath("wt.exe")
 	if err != nil {
 		return false
 	}
-	args := []string{"--window", "new", "--size", "140,45", exe}
-	args = append(args, appArgs...)
-	cmd := exec.Command(wt, args...)
-	cmd.Env = append(os.Environ(), "POMME_SIZED_TERMINAL=1")
+	changed, err := ensureTerminalProfile(os.Getenv("LOCALAPPDATA"), exe)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Pomme: could not register Terminal logo:", err)
+		return false
+	}
+	if changed {
+		time.Sleep(750 * time.Millisecond)
+	}
+	cmd := exec.Command(wt, pommeTerminalArgs(exe, appArgs)...)
+	cmd.Env = os.Environ()
 	if err := cmd.Run(); err != nil {
 		return false
 	}
