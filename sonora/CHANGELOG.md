@@ -7,6 +7,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Expose Apple Music catalog artist search with artist IDs and optional portraits for clients using the music provider API.
+
 ### Fixed
 
 - Preserve streaming and decoding failures so interrupted Apple Music tracks are not treated as finished.

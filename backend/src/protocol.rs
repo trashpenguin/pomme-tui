@@ -33,6 +33,8 @@ pub fn decode(bytes: &[u8]) -> anyhow::Result<Request> {
             "save_playlist",
             "library_page",
             "artist_page",
+            "song_artists",
+            "song_album",
             "discovery",
             "discovery_item",
             "save_item",
@@ -134,6 +136,18 @@ impl Response {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn song_album_lookup_is_a_supported_request() {
+        assert!(
+            super::decode(br#"{"id":9,"method":"song_album","params":{"id":"song-1"}}"#).is_ok()
+        );
+    }
+    #[test]
+    fn song_artist_lookup_is_a_supported_request() {
+        let request =
+            super::decode(br#"{"id":1,"method":"song_artists","params":{"id":"song-1"}}"#).unwrap();
+        assert_eq!(request.method, "song_artists");
+    }
     use super::*;
     #[test]
     fn protocol_accepts_known_request_and_preserves_id() {

@@ -2,7 +2,8 @@ use anyhow::{Context, Result, bail};
 use apple_native_engine::auth_failure::{AuthExpired, classify, is_auth_error};
 use apple_native_engine::protocol::{DiscoveryFeed, DiscoverySection, SearchResults, WireTrack};
 use apple_native_engine::transport::artwork_template;
-use music::{Album, GenreItem, MusicApi, Playlist, Track};
+use music::{Album, Artist, ArtistRef, GenreItem, MusicApi, Playlist, Track};
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 #[derive(Clone)]
@@ -185,7 +186,7 @@ impl Catalog {
                                 id: item.id,
                                 title: item.name,
                                 kind: "artist".into(),
-                                art: item.cover.unwrap_or_default(),
+                                art: artwork_template(item.cover.unwrap_or_default()),
                                 ..Default::default()
                             })
                         }
@@ -209,13 +210,58 @@ impl Catalog {
             }
             _ => bail!("invalid library category"),
         }
+        if category == "artists" {
+            let missing: Vec<String> = result
+                .artists
+                .iter()
+                .filter(|artist| artist.art.is_empty())
+                .map(|artist| artist.id.clone())
+                .collect();
+            if !missing.is_empty() {
+                if let Ok(pictures) = self.api.artist_images(missing).await {
+                    fill_artist_pictures(&mut result.artists, pictures);
+                }
+            }
+        }
         Ok(result)
     }
     pub async fn artist_page(&self, id: &str) -> Result<SearchResults> {
         let artist = self.api.artist(id).await?;
+        Ok(artist_page_results(id, artist))
+    }
+    pub async fn song_album(&self, id: &str) -> Result<SearchResults> {
+        anyhow::ensure!(
+            !id.is_empty() && id.len() <= 256 && !id.chars().any(char::is_control),
+            "invalid song ID"
+        );
+        let track = self.api.track(id).await.map_err(classify)?;
+        let id = song_album_id(track.album_id)?;
+        let detail = self.api.album(&id).await.map_err(classify)?;
         Ok(SearchResults {
-            songs: artist.top_tracks.into_iter().map(song).collect(),
-            albums: artist.albums.into_iter().map(album).collect(),
+            albums: vec![album(detail.album)],
+            ..Default::default()
+        })
+    }
+    pub async fn song_artists(&self, id: &str) -> Result<SearchResults> {
+        anyhow::ensure!(
+            !id.is_empty() && id.len() <= 256 && !id.chars().any(char::is_control),
+            "invalid song ID"
+        );
+        let track = self.api.track(id).await.map_err(classify)?;
+        let ids = track
+            .artist_refs
+            .iter()
+            .filter_map(|artist| artist.id.clone())
+            .collect();
+        // Pictures are decorative. A failed portrait lookup must not discard valid IDs.
+        let pictures = self.api.artist_images(ids).await.unwrap_or_default();
+        let artists = artist_references(track.artist_refs, pictures);
+        anyhow::ensure!(
+            !artists.is_empty(),
+            "artist information is unavailable for this song"
+        );
+        Ok(SearchResults {
+            artists,
             ..Default::default()
         })
     }
@@ -225,16 +271,18 @@ impl Catalog {
             !query.trim().is_empty() && query.len() <= 512,
             "search query must be 1–512 bytes"
         );
-        let (songs, albums, playlists) = tokio::join!(
+        let (songs, albums, playlists, artists) = tokio::join!(
             self.api.search(query),
             self.api.search_albums(query),
-            self.api.search_playlists(query)
+            self.api.search_playlists(query),
+            self.api.search_artists(query)
         );
         let mut result = SearchResults::default();
         for error in [
             songs.as_ref().err(),
             albums.as_ref().err(),
             playlists.as_ref().err(),
+            artists.as_ref().err(),
         ]
         .into_iter()
         .flatten()
@@ -253,6 +301,16 @@ impl Catalog {
         }
         match playlists {
             Ok(items) => result.playlists = items.into_iter().take(50).map(playlist).collect(),
+            Err(_) => result.err = "Some catalog results are unavailable".into(),
+        }
+        match artists {
+            Ok(items) => {
+                result.artists = items
+                    .into_iter()
+                    .take(50)
+                    .filter_map(artist_search_hit)
+                    .collect()
+            }
             Err(_) => result.err = "Some catalog results are unavailable".into(),
         }
         Ok(result)
@@ -337,6 +395,182 @@ impl Catalog {
             .collect();
         anyhow::ensure!(!items.is_empty(), "item has no playable catalog tracks");
         Ok(items)
+    }
+}
+
+fn artist_page_results(id: &str, artist: Artist) -> SearchResults {
+    SearchResults {
+        artists: vec![WireTrack {
+            id: id.to_owned(),
+            title: artist.name,
+            kind: "artist".into(),
+            art: artwork_template(artist.cover_large.unwrap_or_default()),
+            ..Default::default()
+        }],
+        songs: artist.top_tracks.into_iter().map(song).collect(),
+        albums: artist.albums.into_iter().map(album).collect(),
+        ..Default::default()
+    }
+}
+
+fn fill_artist_pictures(artists: &mut [WireTrack], pictures: HashMap<String, String>) {
+    for artist in artists {
+        if artist.art.is_empty() {
+            if let Some(picture) = pictures.get(&artist.id) {
+                artist.art = artwork_template(picture.clone());
+            }
+        }
+    }
+}
+
+fn artist_references(
+    references: Vec<ArtistRef>,
+    pictures: HashMap<String, String>,
+) -> Vec<WireTrack> {
+    let mut seen = HashSet::new();
+    references
+        .into_iter()
+        .filter_map(|artist| {
+            let id = artist.id.filter(|id| !id.is_empty())?;
+            if !seen.insert(id.clone()) {
+                return None;
+            }
+            Some(WireTrack {
+                art: artwork_template(pictures.get(&id).cloned().unwrap_or_default()),
+                id,
+                title: artist.name,
+                kind: "artist".into(),
+                ..Default::default()
+            })
+        })
+        .collect()
+}
+
+fn artist_search_hit(artist: music::SavedArtist) -> Option<WireTrack> {
+    if artist.id.is_empty() || artist.id.chars().any(char::is_control) {
+        return None;
+    }
+    Some(WireTrack {
+        id: artist.id,
+        title: artist.name,
+        kind: "artist".into(),
+        art: artwork_template(artist.cover.unwrap_or_default()),
+        ..Default::default()
+    })
+}
+
+fn song_album_id(id: Option<String>) -> Result<String> {
+    let id = id.filter(|id| !id.is_empty() && id.len() <= 256 && !id.chars().any(char::is_control));
+    id.ok_or_else(|| anyhow::anyhow!("album information is unavailable for this song"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn artist_search_preserves_catalog_ids_and_tolerates_missing_portraits() {
+        let item = artist_search_hit(music::SavedArtist {
+            id: "artist-7".into(),
+            name: "Artist".into(),
+            cover: None,
+            added_at: None,
+        })
+        .unwrap();
+        assert_eq!(item.id, "artist-7");
+        assert_eq!(item.kind, "artist");
+        assert!(item.art.is_empty());
+        assert!(
+            artist_search_hit(music::SavedArtist {
+                id: "".into(),
+                name: "Invalid".into(),
+                cover: None,
+                added_at: None
+            })
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn song_album_reference_requires_a_real_valid_id() {
+        assert_eq!(
+            song_album_id(Some("catalog-album-7".into())).unwrap(),
+            "catalog-album-7"
+        );
+        for id in [
+            None,
+            Some("".into()),
+            Some("bad\n".into()),
+            Some("x".repeat(257)),
+        ] {
+            assert!(song_album_id(id).is_err());
+        }
+    }
+
+    #[test]
+    fn missing_library_portraits_are_filled_by_id_without_replacing_existing_art() {
+        let mut artists = vec![
+            WireTrack {
+                id: "one".into(),
+                art: "existing".into(),
+                ..Default::default()
+            },
+            WireTrack {
+                id: "two".into(),
+                ..Default::default()
+            },
+        ];
+        fill_artist_pictures(
+            &mut artists,
+            HashMap::from([
+                ("one".into(), "replacement".into()),
+                ("two".into(), "https://example.test/photo.jpg".into()),
+            ]),
+        );
+        assert_eq!(artists[0].art, "existing");
+        assert!(!artists[1].art.is_empty());
+    }
+    #[test]
+    fn song_references_preserve_real_ids_without_pictures_and_deduplicate() {
+        let artists = artist_references(
+            vec![
+                ArtistRef {
+                    name: "Artist".into(),
+                    id: Some("catalog-7".into()),
+                },
+                ArtistRef {
+                    name: "Again".into(),
+                    id: Some("catalog-7".into()),
+                },
+                ArtistRef {
+                    name: "Unknown".into(),
+                    id: None,
+                },
+            ],
+            HashMap::new(),
+        );
+        assert_eq!(artists.len(), 1);
+        assert_eq!(artists[0].id, "catalog-7");
+        assert_eq!(artists[0].title, "Artist");
+        assert_eq!(artists[0].kind, "artist");
+        assert!(artists[0].art.is_empty());
+    }
+    #[test]
+    fn artist_page_includes_portrait_profile_without_losing_the_catalogue() {
+        let result = artist_page_results(
+            "artist-1",
+            Artist {
+                name: "Artist".into(),
+                cover_large: Some("https://example.test/portrait/{w}x{h}.jpg".into()),
+                biography: None,
+                monthly_listeners: None,
+                top_tracks: Vec::new(),
+                albums: Vec::new(),
+            },
+        );
+        assert_eq!(result.artists[0].id, "artist-1");
+        assert_eq!(result.artists[0].title, "Artist");
+        assert!(!result.artists[0].art.is_empty());
+        assert!(result.songs.is_empty() && result.albums.is_empty());
     }
 }
 

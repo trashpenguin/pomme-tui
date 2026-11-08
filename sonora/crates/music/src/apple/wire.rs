@@ -101,6 +101,8 @@ pub struct Search<'a> {
     #[serde(deserialize_with = "loose")]
     pub songs: Relation<'a>,
     #[serde(deserialize_with = "loose")]
+    pub artists: Relation<'a>,
+    #[serde(deserialize_with = "loose")]
     pub albums: Relation<'a>,
     #[serde(deserialize_with = "loose")]
     pub playlists: Relation<'a>,

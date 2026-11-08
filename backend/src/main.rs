@@ -226,7 +226,7 @@ async fn main() -> Result<()> {
                 }
                 let Some(ctrl)=control.as_mut() else{write_response(Response::error(id,"Apple Music sign-in required"))?;continue;};
                 if !ctrl.authed && method!="state" {write_response(Response::error(id,"Apple Music authentication expired; sign in again"))?;continue;}
-                if ["search","library","library_page","artist_page","discovery","discovery_item","save_item","save_playlist","play","queue_next","queue_later"].contains(&method){
+                if ["search","library","library_page","artist_page","song_artists","song_album","discovery","discovery_item","save_item","save_playlist","play","queue_next","queue_later"].contains(&method){
                     if jobs.len()>=8{write_response(Response::error(id,"too many catalog requests; try again"))?;continue;}
                     if method=="play"{ctrl.begin_selection();}
                     let generation=ctrl.generation;let cat=catalog.as_ref().unwrap().clone();
@@ -240,6 +240,8 @@ async fn main() -> Result<()> {
                                 "search"=>cat.search(string(&request.params,"query")?).await.map(Data::Results),
                                 "library_page"=>cat.library_page(string(&request.params,"category")?,number(&request.params,"offset")? as usize).await.map(Data::Results),
                                 "artist_page"=>cat.artist_page(string(&request.params,"id")?).await.map(Data::Results),
+                                "song_artists"=>cat.song_artists(string(&request.params,"id")?).await.map(Data::Results),
+                                "song_album"=>cat.song_album(string(&request.params,"id")?).await.map(Data::Results),
                                 "discovery"=>cat.discovery().await.map(Data::Discovery),
                                 "discovery_item"=>cat.discovery_tracks(string(&request.params,"kind")?,string(&request.params,"id")?).await.map(Data::TrackList),
                                 "save_item"=>cat.save_to_library(string(&request.params,"kind")?,string(&request.params,"id")?).await.map(|_|Data::Action),

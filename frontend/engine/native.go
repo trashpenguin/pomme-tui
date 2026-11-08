@@ -138,7 +138,7 @@ func methodTimeout(method string) time.Duration {
 	switch method {
 	case "save_playlist":
 		return 310 * time.Second
-	case "search", "library", "library_page", "artist_page", "play", "queue_next", "queue_later", "save_item":
+	case "search", "library", "library_page", "artist_page", "song_artists", "song_album", "play", "queue_next", "queue_later", "save_item":
 		return 35 * time.Second
 	default:
 		return 5 * time.Second
@@ -227,6 +227,14 @@ func (e *Engine) LibraryPage(category string, offset int) (SearchResults, error)
 }
 func (e *Engine) ArtistPage(id string) (SearchResults, error) {
 	return e.results("artist_page", map[string]any{"id": id})
+}
+
+func (e *Engine) SongAlbum(id string) (SearchResults, error) {
+	return e.results("song_album", map[string]any{"id": id})
+}
+
+func (e *Engine) SongArtists(id string) (SearchResults, error) {
+	return e.results("song_artists", map[string]any{"id": id})
 }
 
 func (e *Engine) Discovery() (Discovery, error) {

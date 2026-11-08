@@ -297,6 +297,11 @@ pub trait MusicApi: Send + Sync {
 
     async fn search(&self, query: &str) -> Result<Vec<Track>>;
 
+    /// Catalog artists with real IDs and optional portraits; unsupported providers return none.
+    async fn search_artists(&self, _query: &str) -> Result<Vec<SavedArtist>> {
+        Ok(Vec::new())
+    }
+
     async fn search_albums(&self, _query: &str) -> Result<Vec<Album>> {
         Ok(Vec::new())
     }

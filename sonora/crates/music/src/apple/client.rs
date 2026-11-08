@@ -1103,6 +1103,25 @@ impl MusicApi for AppleClient {
             .collect())
     }
 
+    /// Search catalog artist resources directly instead of deriving artists from song hits.
+    async fn search_artists(&self, query: &str) -> Result<Vec<SavedArtist>> {
+        let limit = HITS.to_string();
+        let body = self
+            .get(
+                &self.catalog("/search"),
+                &[("term", query), ("types", "artists"), ("limit", &limit)],
+            )
+            .await?;
+        let answered: wire::Answer<wire::Search> = wire::answer(&body);
+        Ok(answered
+            .results
+            .artists
+            .rows()
+            .iter()
+            .filter_map(wire::similar_artist)
+            .collect())
+    }
+
     async fn search_albums(&self, query: &str) -> Result<Vec<Album>> {
         let limit = HITS.to_string();
         let body = self
