@@ -1,3 +1,41 @@
+# Unreleased browsing and controls verification — 9 November 2026
+
+This section describes development changes after the published rc.5 release. No
+new release/tag or replacement of rc.5 assets is implied.
+
+- Go tests/vet cover Library and Search artwork navigation, artist/album/playlist
+  detail flows, ranked Stats playback, keyboard scopes, stale response rejection,
+  initialization guards, bounded artwork loading, Unicode and terminal sizes.
+- Native library and full backend binary tests passed: 14 protocol/transport tests
+  and 23 catalog/controller tests. The shipped playback regressions remain part of
+  the standard test script; no audio recovery implementation or dependency version
+  changed in this feature update. The final local pass also verified all 27 shipped
+  stream/engine/Apple playback regressions, Apple-only dependencies and the
+  launcher/setup prerequisite test scripts.
+- Explicit read-only Apple Music checks verified catalog artist search, real song
+  artist/album references, portraits, artist top songs/albums and album tracks.
+  Artist search failed before the backend fix and passed afterward. No live audio
+  played during these catalog checks.
+- Independent reviews found and resolved queue initialization/notice-routing,
+  same-name album ranking, Search scrolling, mini overlay visibility and launcher
+  entrypoint issues. Complete control scope is recorded in [the audit](docs/controls-audit.md).
+- Rendered narrow/wide fixtures verified artwork, controls help and mini layout.
+  Help preserves complete sections at 70×22, 100×30, 140×45 and 100×48; mini tests
+  cover 20×5 through 200×35.
+- An explicit Windows Terminal 1.24 probe accepted the Pomme profile, preserved
+  paths/arguments with spaces, and ran the actual child launcher's version command
+  without recursion. Profile registration tests preserve existing JSONC settings.
+- Local optimized previews passed privacy, installation with spaces, corruption
+  rejection, version, audio/output options, dependency-error, fresh-profile and
+  shutdown checks. Only application source, tests and documentation are committed;
+  profiles, credentials, screenshots, binaries and local test output are excluded.
+
+The clean-machine prerequisite installation, signing, extended playback soak and
+USB/Bluetooth release gates documented below remain open. This update does not
+convert the existing prerelease into a public-ready stable release.
+
+---
+
 # Pomme TUI 0.2.6-rc.5 verification
 
 ## Windows setup — 8 November 2026

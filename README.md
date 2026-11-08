@@ -6,15 +6,19 @@
 
 A Windows terminal player with native audio playback, search, a queue, synced lyrics, artwork, themes, and visualizers. An active Apple Music subscription is required. Pomme is an unofficial community project, independent of Apple.
 
+**Development branch:** the artwork browsing, Search, Stats, controls and mini-player changes described below are [unreleased](CHANGELOG.md#unreleased). The current rc.5 downloads do not include them.
+
 ## Install and play
 
 1. [Download the Windows setup](https://github.com/trashpenguin/pomme-tui/releases/download/v0.2.6-rc.5/pomme-tui-0.2.6-rc.5-setup-x64.exe) and run it. See the [prerelease notes](https://github.com/trashpenguin/pomme-tui/releases/tag/v0.2.6-rc.5) for validation and limits.
 2. Follow setup. It checks required components, downloads and installs missing ones from Google/Microsoft, and adds a Start menu shortcut. Allow Windows permission prompts when requested, then open Pomme and complete Apple Music sign-in.
-3. Press **/**, enter a song or artist, press **Enter** to search, then **Enter** to play.
+3. Press **/**, enter a song or artist, press **Enter** to search, then **Enter** to play a song or open an artist, album or playlist.
 
 You need Windows 10/11 x64, internet access and your own Apple Music subscription. **Setup handles missing Chrome/Widevine, Visual C++ x64 Runtime and WebView2 prerequisites.** Downloads are checked for a trusted Google/Microsoft signature before execution. If a component needs a restart, setup asks you to restart Windows yourself before opening Pomme.
 
 For portable use, extract the Windows ZIP and open **Pomme.exe**. Portable users provide the prerequisites themselves. Widevine comes from the official Chrome installation; it is not bundled separately in Pomme. Chrome does not run during playback. See [setup details](docs/windows-setup.md), including validation limits.
+
+When Windows Terminal is available, `Pomme.exe` and the `pomme` command open the dedicated **Pomme** profile with the apple icon in the terminal tab. The launcher registers its own profile fragment and embedded icon under `%LOCALAPPDATA%\Microsoft\Windows Terminal\Fragments\PommeTUI`; it preserves the contents of your existing Terminal settings. See [Microsoft’s profile-fragment documentation](https://learn.microsoft.com/en-us/windows/terminal/json-fragment-extensions).
 
 If setup fails, run `pomme.cmd doctor` from the extracted folder. Install missing dependencies from their official sources: [Chrome](https://www.google.com/chrome/), [Microsoft Visual C++ x64 Runtime](https://aka.ms/vc14/vc_redist.x64.exe), [WebView2](https://developer.microsoft.com/microsoft-edge/webview2/).
 
@@ -38,10 +42,11 @@ The packaged backend passed an actual Apple Music test with a deliberately inter
 
 ## What's new in 0.2.5
 
+- **Search:** find songs, albums, playlists and artists with category counts and a selected artwork preview. Enter plays a song or opens an artist/album/playlist; e plays an entire selected album/playlist. Tab switches category, arrows browse and / edits the query. Back restores the search selection.
 - **Discovery:** browse Apple Music recommendations, open supported albums, playlists, artists and genres, then play or queue items.
-- **Listening stats:** view play counts and listening time by date range. Stats are collected locally by Pomme starting with this version; older Apple Music listening history is not imported.
+- **Listening stats:** view play counts and listening time by date range. In Top Tracks, use Up/Down to select and Enter to play, or click to select and double-click to play. Left/Right changes the range and r refreshes. Stats are collected locally by Pomme starting with this version; older Apple Music listening history is not imported.
 - **Queue manager:** play, reorder and remove queued tracks, or clear the queue.
-- **Library:** browse songs, albums, playlists, artists and favorites in dedicated pages. Recently played is shown in its own panel.
+- **Library:** browse songs, albums, playlists, artists and favorites in dedicated pages. Artists have portrait cards in the same terminal art style as song covers; open a card to browse top songs, albums and album tracks. Stats Top Artists opens the same browser. In Stats, Tab also focuses Top Albums; Click or Enter opens the selected album’s songs; e/E plays the whole album. Esc from its track page returns to Stats. Recently played is shown in its own panel.
 - **Security:** the bundled Rustls dependency is updated to a patched version.
 
 The current setup executable, portable Windows ZIP, matching source ZIP and SHA-256 checksums are attached to the [v0.2.6-rc.5 release](https://github.com/trashpenguin/pomme-tui/releases/tag/v0.2.6-rc.5).
@@ -89,7 +94,7 @@ For a persistent preference, set the user environment variable `POMME_OUTPUT` to
 | Space | Play/pause |
 | n / p | Next / previous |
 | / | Search |
-| Tab | Move focus or search category |
+| Tab / Shift+Tab | Next / previous focus or search category |
 | Enter | Play selected result or queue entry |
 | a / A in search | Append / play next |
 | L | Open the selected Library page |
@@ -97,23 +102,28 @@ For a persistent preference, set the user environment variable `POMME_OUTPUT` to
 | e in Discovery | Play the selected recommendation |
 | a / A in Discovery or Library | Queue selected / play next |
 | w, then y / Enter in Discovery | Confirm saving selected item to library |
-| q in Discovery / queue page | Open the queue manager |
+| q in Discovery; Esc/q in Queue Manager | Open queue manager / return |
 | Delete / Ctrl+Up / Ctrl+Down in queue | Remove / move selected track |
-| Ctrl+Delete in queue | Clear the queue |
+| Ctrl+X with queue focused | Clear the queue |
 | Enter in Library | Open the selected category or item |
-| Tab in Library | Cycle library categories |
+| Esc in Library | Return to the Library menu to choose another category |
 | ← / → in Stats; r | Change date range / refresh stats |
+| Tab in Stats; Enter | Focus Tracks/Artists/Albums; play track or open artist/album |
+| Tab in artist details | Switch Top songs / Albums |
+| Enter / click in artist browser | Open artist or album / play song |
+| e / E on an album or playlist | Play the whole selected album/playlist, including from its track page |
+| a / A in artist browser; Esc | Queue selected / play next; back |
 | Ctrl+P / Ctrl+N in search | Previous / next search in history |
 | PgUp / PgDn | Page through lists and help |
 | Left / right in player | Seek five seconds |
 | Up / down in player | Volume |
 | s | Shuffle |
-| r / R | Cycle repeat |
+| r / R on the main screen | Cycle repeat |
 | v / t | Visualizer / theme |
 | m / T | Mini player / sleep timer |
-| ? | Full context-sensitive key help |
-| a outside search | Account menu; Enter in account signs out |
-| F5 | Recover the audio engine / retry a failed connection |
+| F1 / ? | Controls for the current screen; ? remains text in search input |
+| a on the main screen | Account menu; Enter in account signs out |
+| F5 on the main screen | Recover the audio engine / retry a failed connection |
 | q / Ctrl+C | Quit |
 
 Lyrics use LRCLIB and can be missing or inaccurate. Missing lyrics/artwork do not prevent playback. Optional Last.fm support is inherited from the frontend and is off unless configured. Run `pomme lastfm-auth` to configure its authentication in the Pomme profile.
@@ -156,8 +166,8 @@ The interface is a modified [applemusic-tui](https://github.com/k1y0miiii/applem
 ### 0.2.0
 
 - **Session restore:** queue, selected track, position, volume, shuffle and repeat are saved every 15 seconds and on normal exit. Reopening restores paused. Signing out clears the saved queue.
-- **Library:** choose a category in the Library panel and press `Enter`; `L` opens the selected item's dedicated page. Press `Tab` on a library page to cycle songs, albums, playlists, artists and favorites. `PgUp`/`PgDn` fetch 50-item pages. Select an artist to browse their tracks and albums. Apple library permissions and availability still apply.
-- **Queue:** `Delete` removes the selected track, `Ctrl+Up/Down` moves it, and `Ctrl+Delete` clears the queue. Press `S` twice within five seconds to save a dated playlist to Apple Music. A failed or interrupted save may leave a partial playlist; check your library before retrying.
+- **Library:** choose a category in the Library panel and press `Enter`; `L` opens the selected item's dedicated page. Each page stays in its selected category; press `Esc` to return to the menu and choose another. Library albums and playlists use cover-art cards; open one to browse and play its tracks. `PgUp`/`PgDn` fetch 50-item pages. Select an artist to browse their tracks and albums. Apple library permissions and availability still apply.
+- **Queue:** `Delete` removes the selected track, `Ctrl+Up/Down` moves it, and `Ctrl+X` clears the focused queue. Press `S` twice within five seconds to save a dated playlist to Apple Music. A failed or interrupted save may leave a partial playlist; check your library before retrying.
 - **Media keys:** Uses Windows System Media Transport Controls for play/pause, next and previous while Pomme is in the background, with current track metadata. Windows selects the active media session; start playback in Pomme before testing keyboard controls.
 - **Optional global shortcuts:** Disabled by default. After the player starts, edit `%LOCALAPPDATA%\PommeTUI\settings\hotkeys.json` (or `settings\hotkeys.json` under your custom `POMME_DATA_DIR`) and restart Pomme. Set `enabled` to `true` to enable the combinations below, or `false` to release them on the next restart. While disabled, Pomme registers no global keyboard combinations.
 
@@ -172,7 +182,7 @@ The interface is a modified [applemusic-tui](https://github.com/k1y0miiii/applem
 
 Customize combinations with Ctrl, Alt, and Shift plus a letter, digit, F1–F24, Space, Left, Right, Up, or Down. Include Ctrl or Alt. Each combination must be different. Enabled shortcuts apply while another app or game is focused and may consume that combination; leave them disabled or choose combinations your games do not use. If registration fails, all Pomme global shortcuts are released and the player shows a notice. Hardware media-button support remains separate.
 
-- **Mini player:** `m` toggles the compact view; it also fits smaller terminals.
+- **Mini player:** `m` toggles a compact card with a Pomme wordmark, separate title/artist lines, aligned progress/times, playback state and timer. The card scales down for small terminals and stays bounded in wide windows. Arrows seek/change volume while mini mode is active; `m` restores the previous main-panel focus. `F1` opens its controls.
 - **Sleep timer:** `T` cycles off / 15 / 30 / 60 / 90 minutes. Expiry pauses playback; timers are not restored after exit.
 - **Search history:** `Ctrl+P` and `Ctrl+N` recall up to 30 searches in the search overlay. History stays in your local settings folder.
 - **Help:** `?`, then `PgUp/PgDn` to browse controls.

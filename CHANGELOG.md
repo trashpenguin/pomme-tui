@@ -2,6 +2,30 @@
 
 ## [Unreleased]
 
+### Added
+
+- Browse Library artists, albums and playlists with artwork in the existing terminal cover-art style. Artist pages show top songs and albums; collection pages show their tracks. Enter/click opens an item or plays a song; e/E plays a whole album or playlist.
+- Select Stats Top Tracks, Top Artists and Top Albums with Tab, arrows or the mouse. Tracks play directly; artists and albums open details. e/E plays the selected whole album. Back restores the Stats range and selection.
+- Search Apple Music catalog artists directly, alongside songs, albums and playlists. Show category counts, selected artwork, explicit loading/empty/error states and mouse navigation; Back preserves the query and viewport.
+- Display the Pomme apple icon in its Windows Terminal tab using an application-owned profile. Pomme.exe and the pomme command select that profile while preserving existing Terminal settings contents.
+
+### Changed
+
+- Keep Library categories fixed while browsing; choose another category from the main Library menu instead of cycling them with Tab.
+- Align Stats ranking cards, retain play counts beside truncated names, and scroll all rankings in compact terminals. Resolve catalog navigation through actual song artist/album references; distinguish same-named album rankings by credited artist.
+- Rebuild controls help with whole sections grouped by screen, responsive one/two-column pages, F1 from every screen and explicit close keys. Clarify case-sensitive and context-specific bindings; add reverse Tab navigation.
+- Use Ctrl+X to clear the focused queue or Queue Manager, replacing Ctrl+Delete, which the terminal library did not decode. Reserve r/R for repeat and F5 for reload on the main screen.
+- Redesign the mini player as a bounded responsive card with a wordmark, separate title/artist lines, aligned progress/times and explicit playback/timer state. Arrows control playback; expanding restores the previous panel focus.
+
+### Fixed
+
+- Discard stale search, artwork, catalog and Stats lookup responses after navigation or reconnecting. Bound artwork caching and tolerate unavailable portraits.
+- Preserve Search query text containing ? or /, open the matching Library category with L, and keep scrolled rows stable under click/double-click.
+- Allow safe Library navigation during audio initialization, guard Queue Manager playback consistently and support Ctrl+C to return. Queue/save/scrobble notices no longer falsely fail unrelated playback initialization.
+- Show browsing screens over the mini player so controls cannot operate an invisible page. Prevent launcher recursion, preserve arguments with spaces and keep diagnostic commands from reopening Terminal or waiting for keyboard input.
+
+These changes are on the development branch and are not included in the published rc.5 packages. Local history still groups editions with identical album title and credited artist; missing artwork uses initials.
+
 ## [0.2.6-rc.5] - 2026-11-08
 
 ### Added
