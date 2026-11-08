@@ -1,5 +1,20 @@
 # Pomme TUI 0.2.6-rc.3 verification
 
+## Isolated installation and fresh sign-in — 8 November 2026
+
+The user confirmed that no clean VM or separate Windows PC was available, so this pass used a newly installed copy and empty Pomme profile on the existing Windows 11 Home PC. This does **not** establish clean-Windows compatibility.
+
+- Downloaded the public rc.3 Windows ZIP and checksum file, verified the archive hash, and installed to a separate path containing spaces without changing PATH or replacing the normal installation.
+- Installed version reports 0.2.6-rc.3. Dependency preflight found the existing Chrome Widevine, Visual C++ x64 Runtime, and WebView2 installations. Default Windows output was selected.
+- Release checks passed for binary privacy, installation, corruption rejection, version, output options, dependency errors, fresh-profile unauthenticated startup, and shutdown.
+- The empty profile contained no Apple credentials and inherited token overrides were removed. The user completed fresh sign-in directly in Apple's packaged sign-in window; existing account credentials were not copied.
+- A newly started installed backend restored the new authentication, returned 25 catalog songs, and advanced a selected song during muted native playback.
+- Pause/seek to approximately 12 seconds and clean shutdown passed. A second process restored authentication, the same queued song, the paused position, and mute setting. Play resumed beyond that saved position; the test then paused and exited cleanly.
+
+The isolated install/fresh sign-in/session persistence check passed. Full interactive TUI startup was not re-exercised in this pass. Clean Windows user/VM testing, first-time prerequisite installation, physical output-device checks, and Rust advisory review remain outstanding. The normal Pomme profile was not replaced or signed out.
+
+## Release-candidate checks — 7 November 2026
+
 Checked on 7 November 2026. This frontend correction reserves `r`/`R` for repeat and uses F5 for engine reload and failed-connection retry. It updates help, initialization/failure hints, and README controls.
 
 The new regressions failed before the correction and passed afterward. The full Go suite and vet pass, including help layout and the existing reload tests updated to F5. The native backend is unchanged from the 0.2.6-rc.2 build whose verification is recorded below; its live playback-recovery results remain applicable.
