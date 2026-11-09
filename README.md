@@ -6,12 +6,20 @@
 
 A Windows terminal player with native audio playback, search, a queue, synced lyrics, artwork, themes, and visualizers. An active Apple Music subscription is required. Pomme is an unofficial community project, independent of Apple.
 
-
 ## Install and play
 
-1. [Download the Windows setup](https://github.com/trashpenguin/pomme-tui/releases/download/v0.2.6-rc.6/pomme-tui-0.2.6-rc.6-setup-x64.exe) and run it. See the [prerelease notes](https://github.com/trashpenguin/pomme-tui/releases/tag/v0.2.6-rc.6) for validation and limits.
+**Current Windows prerelease: 0.2.6-rc.6**
+
+| Download | Use |
+| --- | --- |
+| [Windows setup (x64)](https://github.com/trashpenguin/pomme-tui/releases/download/v0.2.6-rc.6/pomme-tui-0.2.6-rc.6-setup-x64.exe) | Install Pomme and set up missing prerequisites |
+| [Portable Windows ZIP (x64)](https://github.com/trashpenguin/pomme-tui/releases/download/v0.2.6-rc.6/pomme-tui-0.2.6-rc.6-windows-x64.zip) | Run Pomme from an extracted folder |
+| [Matching source ZIP](https://github.com/trashpenguin/pomme-tui/releases/download/v0.2.6-rc.6/pomme-tui-0.2.6-rc.6-source.zip) | Build or inspect this release |
+| [SHA-256 checksums](https://github.com/trashpenguin/pomme-tui/releases/download/v0.2.6-rc.6/SHA256SUMS-0.2.6-rc.6.txt) | Verify the downloaded files |
+
+1. Download and run Windows setup. If you already use Pomme, quit it before running the installer. Setup keeps your existing profile and sign-in.
 2. Follow setup. It checks required components, downloads and installs missing ones from Google/Microsoft, and adds a Start menu shortcut. Allow Windows permission prompts when requested, then open Pomme and complete Apple Music sign-in.
-3. Press **/**, enter a song or artist, press **Enter** to search, then **Enter** to play a song or open an artist, album or playlist.
+3. Press **/**, type a search, and press **Enter**. Use **Tab** to choose Songs, Albums, Playlists, or Artists, then use the arrow keys to select a result. Press **Enter** to play a song or open a collection or artist.
 
 You need Windows 10/11 x64, internet access and your own Apple Music subscription. **Setup handles missing Chrome/Widevine, Visual C++ x64 Runtime and WebView2 prerequisites.** Downloads are checked for a trusted Google/Microsoft signature before execution. If a component needs a restart, setup asks you to restart Windows yourself before opening Pomme.
 
@@ -21,36 +29,16 @@ When Windows Terminal is available, `Pomme.exe` and the `pomme` command open the
 
 If setup fails, run `pomme.cmd doctor` from the extracted folder. Install missing dependencies from their official sources: [Chrome](https://www.google.com/chrome/), [Microsoft Visual C++ x64 Runtime](https://aka.ms/vc14/vc_redist.x64.exe), [WebView2](https://developer.microsoft.com/microsoft-edge/webview2/).
 
-## Easier Windows setup in 0.2.6-rc.6
+## What's new in 0.2.6-rc.6
 
-A single setup download installs Pomme, handles missing prerequisites, adds shortcuts and registers an uninstaller. Existing components are reused. Your account/profile is retained on uninstall. See [release notes](releases/v0.2.6-rc.6.md).
+- **Search and Library.** Search the Apple Music catalog for artists, browse their top songs and albums, and see terminal artwork for artists, albums, and playlists. Back returns you to the selected search result. In Library, press **Esc** to return to the menu and choose another category.
+- **Listening stats.** Use **Tab** to switch between Top Tracks, Top Artists, and Top Albums. Press **Enter** to play a ranked track or open an artist or album. Press **e** to play a selected album in full. Stats reflect listening recorded locally by Pomme.
+- **Controls.** Press **F1** for help with the current screen. **Ctrl+X** clears the focused queue, **r** or **R** cycles repeat on the main screen, and **F5** reloads the audio engine.
+- **Mini player.** Press **m** for the compact player with track details and a progress bar. The apple icon appears beside the Pomme title in its Windows Terminal tab.
 
-## Dependency security fixes from 0.2.6-rc.4
+See the [rc.6 release notes](https://github.com/trashpenguin/pomme-tui/releases/tag/v0.2.6-rc.6) and [changelog](CHANGELOG.md) for earlier Windows setup, security, and playback recovery changes.
 
-Updates the native backend's certificate-trust packages for CVE-2026-111943, Tokio for a Unix I/O-safety advisory, and a yanked locked package. The production Rust scan reports zero known vulnerabilities; one build-time macro maintenance warning remains. See the [dependency audit](docs/rust-dependency-audit.md). Update earlier candidates using the rebuilt rc.4 package.
-
-## Repeat key correction from 0.2.6-rc.3
-
-Both **r** and **R** cycle repeat in the player. **F5** reloads the audio engine or retries a failed connection. Shift/Caps Lock can no longer turn the repeat key into a reload. The help screen and failure/initialization hints use the same shortcuts. See [release notes](releases/v0.2.6-rc.4.md).
-
-## Playback recovery in 0.2.6-rc.2
-
-Interrupted downloads resume the same song at its last audible position, with up to three automatic attempts. The interface shows **Reconnecting audio** and keeps pause/skip available during recovery. Failed loads can be retried with Play. Late events cannot rewind the saved position, and slow downloads can continue progressing while locating it. Audio-output changes are detected even while the audio queue is full or paused.
-
-The packaged backend passed an actual Apple Music test with a deliberately interrupted download, automatic recovery, paused seek/reload, and the next queued song after a near-end seek. All 57 Rust tests and frontend Go tests/vet passed locally. Realtek wired-output switching/reconnection and isolated fresh sign-in passed on rc.3. Rust advisory review is recorded for rc.4. USB/Bluetooth reconnection, clean Windows/first-time prerequisite installation and extended playback soak checks remain outstanding. See [release notes](releases/v0.2.6-rc.2.md), [changelog](CHANGELOG.md), and [verification](VERIFICATION.md).
-
-## What's new in 0.2.5
-
-- **Search:** find songs, albums, playlists and artists with category counts and a selected artwork preview. Enter plays a song or opens an artist/album/playlist; e plays an entire selected album/playlist. Tab switches category, arrows browse and / edits the query. Back restores the search selection.
-- **Discovery:** browse Apple Music recommendations, open supported albums, playlists, artists and genres, then play or queue items.
-- **Listening stats:** view play counts and listening time by date range. In Top Tracks, use Up/Down to select and Enter to play, or click to select and double-click to play. Left/Right changes the range and r refreshes. Stats are collected locally by Pomme starting with this version; older Apple Music listening history is not imported.
-- **Queue manager:** play, reorder and remove queued tracks, or clear the queue.
-- **Library:** browse songs, albums, playlists, artists and favorites in dedicated pages. Artists have portrait cards in the same terminal art style as song covers; open a card to browse top songs, albums and album tracks. Stats Top Artists opens the same browser. In Stats, Tab also focuses Top Albums; Click or Enter opens the selected album’s songs; e/E plays the whole album. Esc from its track page returns to Stats. Recently played is shown in its own panel.
-- **Security:** the bundled Rustls dependency is updated to a patched version.
-
-The current setup executable, portable Windows ZIP, matching source ZIP and SHA-256 checksums are attached to the [v0.2.6-rc.6 release](https://github.com/trashpenguin/pomme-tui/releases/tag/v0.2.6-rc.6).
-
-### Use the `pomme` command anywhere
+## Use the `pomme` command anywhere
 
 From PowerShell in the extracted Windows release folder:
 
@@ -72,7 +60,7 @@ The ZIP also works without installation. The installer verifies executable check
 
 ## Audio and Wave Link
 
-Pomme follows Windows' default output and recovers playback when it changes. To use an Elgato Wave Link channel instead:
+Pomme follows the default Windows audio output and recovers playback when it changes. When a download is interrupted, Pomme tries up to three times to resume the song at its last audible position. To choose an Elgato Wave Link channel, pass its name with `-Output`.
 
 ```powershell
 pomme -Output "Spotify"
@@ -94,7 +82,8 @@ For a persistent preference, set the user environment variable `POMME_OUTPUT` to
 | n / p | Next / previous |
 | / | Search |
 | Tab / Shift+Tab | Next / previous focus or search category |
-| Enter | Play selected result or queue entry |
+| Enter in Search | Submit query, play selected song, or open selected artist, album, or playlist |
+| Enter in the queue | Play the selected track |
 | a / A in search | Append / play next |
 | L | Open the selected Library page |
 | Enter in Discovery | Open a recommendation |
@@ -142,7 +131,9 @@ For a setup installation, uninstall Pomme TUI through Windows Settings → Apps.
 
 ## Scope and limitations
 
-This is the **0.2.6-rc.6 Windows prerelease**. See the verification record for automated checks and the scope of live playback testing. Search returns at most 50 items per category. The initial search overview remains limited. Queues are capped at 1,000 catalog songs. Locally uploaded songs without catalog encodes, offline downloads, lossless, and seamless gapless playback are not supported.
+Windows CI verified setup installation, prerequisite detection, and uninstall. First-time prerequisite installation and playback on a clean Windows machine remain unverified. See the [Windows build and tests](https://github.com/trashpenguin/pomme-tui/actions/runs/42562618283) and the [verification record](VERIFICATION.md).
+
+Search returns at most 50 items per category. The initial search overview remains limited. Queues are capped at 1,000 catalog songs. Locally uploaded songs without catalog encodes, offline downloads, lossless, and seamless gapless playback are not supported.
 
 Native playback still uses a separate Widevine helper. A prior full-interface snapshot measured roughly 236 MiB combined working set; this is a snapshot, not a memory guarantee. The Go soft limit does not cap total app memory. Subscription/authentication and Apple's service behavior may affect availability.
 
