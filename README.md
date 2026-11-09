@@ -6,11 +6,10 @@
 
 A Windows terminal player with native audio playback, search, a queue, synced lyrics, artwork, themes, and visualizers. An active Apple Music subscription is required. Pomme is an unofficial community project, independent of Apple.
 
-**Development branch:** the artwork browsing, Search, Stats, controls and mini-player changes described below are [unreleased](CHANGELOG.md#unreleased). The current rc.5 downloads do not include them.
 
 ## Install and play
 
-1. [Download the Windows setup](https://github.com/trashpenguin/pomme-tui/releases/download/v0.2.6-rc.5/pomme-tui-0.2.6-rc.5-setup-x64.exe) and run it. See the [prerelease notes](https://github.com/trashpenguin/pomme-tui/releases/tag/v0.2.6-rc.5) for validation and limits.
+1. [Download the Windows setup](https://github.com/trashpenguin/pomme-tui/releases/download/v0.2.6-rc.6/pomme-tui-0.2.6-rc.6-setup-x64.exe) and run it. See the [prerelease notes](https://github.com/trashpenguin/pomme-tui/releases/tag/v0.2.6-rc.6) for validation and limits.
 2. Follow setup. It checks required components, downloads and installs missing ones from Google/Microsoft, and adds a Start menu shortcut. Allow Windows permission prompts when requested, then open Pomme and complete Apple Music sign-in.
 3. Press **/**, enter a song or artist, press **Enter** to search, then **Enter** to play a song or open an artist, album or playlist.
 
@@ -22,9 +21,9 @@ When Windows Terminal is available, `Pomme.exe` and the `pomme` command open the
 
 If setup fails, run `pomme.cmd doctor` from the extracted folder. Install missing dependencies from their official sources: [Chrome](https://www.google.com/chrome/), [Microsoft Visual C++ x64 Runtime](https://aka.ms/vc14/vc_redist.x64.exe), [WebView2](https://developer.microsoft.com/microsoft-edge/webview2/).
 
-## Easier Windows setup in 0.2.6-rc.5
+## Easier Windows setup in 0.2.6-rc.6
 
-A single setup download installs Pomme, handles missing prerequisites, adds shortcuts and registers an uninstaller. Existing components are reused. Your account/profile is retained on uninstall. See [release notes](releases/v0.2.6-rc.5.md).
+A single setup download installs Pomme, handles missing prerequisites, adds shortcuts and registers an uninstaller. Existing components are reused. Your account/profile is retained on uninstall. See [release notes](releases/v0.2.6-rc.6.md).
 
 ## Dependency security fixes from 0.2.6-rc.4
 
@@ -49,7 +48,7 @@ The packaged backend passed an actual Apple Music test with a deliberately inter
 - **Library:** browse songs, albums, playlists, artists and favorites in dedicated pages. Artists have portrait cards in the same terminal art style as song covers; open a card to browse top songs, albums and album tracks. Stats Top Artists opens the same browser. In Stats, Tab also focuses Top Albums; Click or Enter opens the selected album’s songs; e/E plays the whole album. Esc from its track page returns to Stats. Recently played is shown in its own panel.
 - **Security:** the bundled Rustls dependency is updated to a patched version.
 
-The current setup executable, portable Windows ZIP, matching source ZIP and SHA-256 checksums are attached to the [v0.2.6-rc.5 release](https://github.com/trashpenguin/pomme-tui/releases/tag/v0.2.6-rc.5).
+The current setup executable, portable Windows ZIP, matching source ZIP and SHA-256 checksums are attached to the [v0.2.6-rc.6 release](https://github.com/trashpenguin/pomme-tui/releases/tag/v0.2.6-rc.6).
 
 ### Use the `pomme` command anywhere
 
@@ -143,7 +142,7 @@ For a setup installation, uninstall Pomme TUI through Windows Settings → Apps.
 
 ## Scope and limitations
 
-This is the **0.2.6-rc.5 Windows prerelease**. Automated UI, backend, installer and release-package checks and muted live Apple Music recovery pass; a clean Windows VM and clean-machine playback have not been verified. Search returns at most 50 items per category. The initial search overview remains limited. Queues are capped at 1,000 catalog songs. Locally uploaded songs without catalog encodes, offline downloads, lossless, and seamless gapless playback are not supported.
+This is the **0.2.6-rc.6 Windows prerelease**. See the verification record for automated checks and the scope of live playback testing. Search returns at most 50 items per category. The initial search overview remains limited. Queues are capped at 1,000 catalog songs. Locally uploaded songs without catalog encodes, offline downloads, lossless, and seamless gapless playback are not supported.
 
 Native playback still uses a separate Widevine helper. A prior full-interface snapshot measured roughly 236 MiB combined working set; this is a snapshot, not a memory guarantee. The Go soft limit does not cap total app memory. Subscription/authentication and Apple's service behavior may affect availability.
 
@@ -155,7 +154,7 @@ Install Go 1.26, Rust 1.98.1, and Visual Studio 2022 Build Tools with Desktop de
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\Build.ps1
 ```
 
-The build reads `VERSION`, runs Go tests/vet, Rust library/controller/playback tests and launcher checks, and creates the setup executable, Windows ZIP, matching source ZIP, and `SHA256SUMS-0.2.6-rc.5.txt` under `dist/`. Production dependencies use `backend/Cargo.lock`; the isolated playback-test workspace adds test-only dependencies without changing it. The pinned Inno Setup 7.1.1 compiler is downloaded, hash/publisher verified and extracted in portable mode under `target/` for setup builds. Do not commit `dist/`, `target/`, credentials, or local profiles. See [CONTRIBUTING.md](CONTRIBUTING.md) and [RELEASE-CHECKLIST.md](RELEASE-CHECKLIST.md).
+The build reads `VERSION`, runs Go tests/vet, Rust library/controller/playback tests and launcher checks, and creates the setup executable, Windows ZIP, matching source ZIP, and `SHA256SUMS-0.2.6-rc.6.txt` under `dist/`. Production dependencies use `backend/Cargo.lock`; the isolated playback-test workspace adds test-only dependencies without changing it. The pinned Inno Setup 7.1.1 compiler is downloaded, hash/publisher verified and extracted in portable mode under `target/` for setup builds. Do not commit `dist/`, `target/`, credentials, or local profiles. See [CONTRIBUTING.md](CONTRIBUTING.md) and [RELEASE-CHECKLIST.md](RELEASE-CHECKLIST.md).
 
 ## Credits and licenses
 

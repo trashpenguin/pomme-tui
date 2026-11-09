@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.2.6-rc.6] - 2026-11-09
+
 ### Added
 
 - Browse Library artists, albums and playlists with artwork in the existing terminal cover-art style. Artist pages show top songs and albums; collection pages show their tracks. Enter/click opens an item or plays a song; e/E plays a whole album or playlist.
@@ -24,7 +26,7 @@
 - Allow safe Library navigation during audio initialization, guard Queue Manager playback consistently and support Ctrl+C to return. Queue/save/scrobble notices no longer falsely fail unrelated playback initialization.
 - Show browsing screens over the mini player so controls cannot operate an invisible page. Prevent launcher recursion, preserve arguments with spaces and keep diagnostic commands from reopening Terminal or waiting for keyboard input.
 
-These changes are on the development branch and are not included in the published rc.5 packages. Local history still groups editions with identical album title and credited artist; missing artwork uses initials.
+Local history groups editions with identical album titles and credited artists. Missing artwork uses initials.
 
 ## [0.2.6-rc.5] - 2026-11-08
 

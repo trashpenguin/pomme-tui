@@ -1,7 +1,6 @@
-# Unreleased browsing and controls verification — 9 November 2026
+# Pomme TUI 0.2.6-rc.6 verification — 9 November 2026
 
-This section describes development changes after the published rc.5 release. No
-new release/tag or replacement of rc.5 assets is implied.
+This section covers the browsing, controls and launcher changes included in rc.6.
 
 - Go tests/vet cover Library and Search artwork navigation, artist/album/playlist
   detail flows, ranked Stats playback, keyboard scopes, stale response rejection,
@@ -31,8 +30,7 @@ new release/tag or replacement of rc.5 assets is implied.
   profiles, credentials, screenshots, binaries and local test output are excluded.
 
 The clean-machine prerequisite installation, signing, extended playback soak and
-USB/Bluetooth release gates documented below remain open. This update does not
-convert the existing prerelease into a public-ready stable release.
+USB/Bluetooth release gates documented below remain open. rc.6 is an unsigned Windows prerelease.
 
 ---
 
